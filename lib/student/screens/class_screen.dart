@@ -1,0 +1,60 @@
+import 'package:flutter/material.dart';
+import 'package:interskwela/models/classes.dart';
+import 'package:interskwela/student/screens/class_tab/class_stream_tab.dart';
+import 'package:interskwela/student/screens/class_tab/class_people_tab.dart';
+import 'package:interskwela/student/screens/class_tab/class_work_tab.dart';
+
+class StudentClassScreen extends StatefulWidget {
+  final Classes specificCLass;
+  final int userId;
+
+  const StudentClassScreen({
+    required this.specificCLass,
+    required this.userId,
+    super.key
+  });
+
+  @override
+  State<StudentClassScreen> createState() => _StudentClassScreenState();
+}
+
+class _StudentClassScreenState extends State<StudentClassScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${widget.specificCLass.subjectCode} - ${widget.specificCLass.sectionName}'),
+          bottom: TabBar(
+            tabs: const [
+              Tab(text: 'Stream'),
+              Tab(text: 'Classwork'),
+              Tab(text: 'People'),
+            ],
+            dividerColor: Colors.transparent,
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // TAB 1: The logic is now encapsulated here
+            ClassStreamTab(
+              specificClass: widget.specificCLass, 
+              userId: widget.userId
+            ),
+
+            // TAB 2: Classwork (Create a separate file for this later)
+            StudentClassworkTab(
+              currentClass: widget.specificCLass,
+              userId: widget.userId,
+            ),
+
+            // TAB 3: People
+            PeopleTab(specificClass: widget.specificCLass),
+          ],
+        ),
+      ),
+    );
+  }
+}
