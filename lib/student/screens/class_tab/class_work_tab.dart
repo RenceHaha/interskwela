@@ -53,8 +53,10 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
         final data = jsonDecode(response.body);
         final List<dynamic> list = data['data'];
 
-        List<Classwork> parsedList = list.map((json) => Classwork.fromJson(json)).toList();
-        
+        List<Classwork> parsedList = list
+            .map((json) => Classwork.fromJson(json))
+            .toList();
+
         Set<String> topicNames = {'All topics'};
         Map<int, String> topicMap = {};
 
@@ -96,26 +98,30 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton.icon(
-                onPressed: () {}, 
+                onPressed: () {},
                 icon: const Icon(Icons.assignment_ind_outlined, size: 20),
                 label: const Text("View your work"),
                 style: TextButton.styleFrom(foregroundColor: AppColors.primary),
               ),
               Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                 decoration: BoxDecoration(
-                   color: Colors.white,
-                   border: Border.all(color: Colors.grey.shade300),
-                   borderRadius: BorderRadius.circular(4),
-                 ),
-                 child: DropdownButtonHideUnderline(
-                   child: DropdownButton<String>(
-                     value: _filterOptions.contains(_filter) ? _filter : _filterOptions.first,
-                     items: _filterOptions.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                     onChanged: (val) => setState(() => _filter = val!),
-                     style: const TextStyle(color: Colors.black87, fontSize: 14),
-                   ),
-                 ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _filterOptions.contains(_filter)
+                        ? _filter
+                        : _filterOptions.first,
+                    items: _filterOptions
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (val) => setState(() => _filter = val!),
+                    style: const TextStyle(color: Colors.black87, fontSize: 14),
+                  ),
+                ),
               ),
             ],
           ),
@@ -123,9 +129,9 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
           const SizedBox(height: 32),
 
           if (_allClassworks.isEmpty)
-             _buildEmptyState()
+            _buildEmptyState()
           else
-             _buildGroupedList(),
+            _buildGroupedList(),
         ],
       ),
     );
@@ -155,11 +161,13 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (noTopicItems.isNotEmpty) ...[
-          ...noTopicItems.map((cw) => ClassworkCard(
-            classwork: cw,
-            userRole: 'student', 
-            onTap: () => _navigateToDetail(cw),
-          )),
+          ...noTopicItems.map(
+            (cw) => ClassworkCard(
+              classwork: cw,
+              userRole: 'student',
+              onTap: () => _navigateToDetail(cw),
+            ),
+          ),
           const SizedBox(height: 24),
         ],
 
@@ -168,11 +176,13 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TopicHeader(topicName: entry.key),
-              ...entry.value.map((cw) => ClassworkCard(
-                classwork: cw,
-                userRole: 'student', 
-                onTap: () => _navigateToDetail(cw),
-              )),
+              ...entry.value.map(
+                (cw) => ClassworkCard(
+                  classwork: cw,
+                  userRole: 'student',
+                  onTap: () => _navigateToDetail(cw),
+                ),
+              ),
               const SizedBox(height: 32),
             ],
           );
@@ -185,10 +195,8 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => StudentClassworkDetailScreen(
-          classwork: cw,
-          userId: widget.userId,
-        ),
+        builder: (context) =>
+            StudentClassworkDetailScreen(classwork: cw, userId: widget.userId),
       ),
     );
   }
@@ -199,11 +207,19 @@ class _StudentClassworkTabState extends State<StudentClassworkTab> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const SizedBox(height: 48),
-          Icon(Icons.assignment_turned_in_outlined, size: 150, color: Colors.blue[100]),
+          Icon(
+            Icons.assignment_turned_in_outlined,
+            size: 150,
+            color: Colors.blue[100],
+          ),
           const SizedBox(height: 24),
           const Text(
             "No classwork assigned yet",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black54,
+            ),
           ),
           const SizedBox(height: 8),
           const Text(

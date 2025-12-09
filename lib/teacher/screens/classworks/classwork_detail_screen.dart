@@ -18,7 +18,8 @@ class ClassworkDetailScreen extends StatefulWidget {
   State<ClassworkDetailScreen> createState() => _ClassworkDetailScreenState();
 }
 
-class _ClassworkDetailScreenState extends State<ClassworkDetailScreen> with SingleTickerProviderStateMixin {
+class _ClassworkDetailScreenState extends State<ClassworkDetailScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -55,8 +56,8 @@ class _ClassworkDetailScreenState extends State<ClassworkDetailScreen> with Sing
             Tab(text: "Instructions"),
             Tab(text: "Student work"),
           ],
-        dividerColor: Colors.transparent,
-        overlayColor: WidgetStateProperty.all(Colors.transparent),
+          dividerColor: Colors.transparent,
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
         ),
         actions: [
           IconButton(

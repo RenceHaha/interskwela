@@ -4,7 +4,7 @@ class AppColors {
   static const Color primary = Color(0xFF1C3353);
 
   // Adjusted based on the primary color
-  static const Color primaryDark = Color(0xFF15263F);  // ~20% darker
+  static const Color primaryDark = Color(0xFF15263F); // ~20% darker
   static const Color primaryLight = Color(0xFF3C5275); // ~25% lighter
 
   static const Color secondary = Color(0xFFF0E491);
@@ -41,14 +41,14 @@ class AppTheme {
       onSurface: AppColors.textPrimary,
     ),
 
-  appBarTheme: const AppBarTheme(
-    backgroundColor: AppColors.surface,
-    foregroundColor: AppColors.textPrimary,
-    elevation: 0,
-    surfaceTintColor: Colors.transparent,
-  ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: AppColors.surface,
+      foregroundColor: AppColors.textPrimary,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
 
- cardTheme: CardThemeData(
+    cardTheme: CardThemeData(
       elevation: 1,
       color: AppColors.surface,
       surfaceTintColor: Colors.transparent,
@@ -58,27 +58,29 @@ class AppTheme {
       ),
     ),
 
-  scaffoldBackgroundColor: AppColors.background,
+    scaffoldBackgroundColor: AppColors.background,
 
-  navigationRailTheme: NavigationRailThemeData(
-    backgroundColor: AppColors.surface,
-    indicatorColor: AppColors.primary.withOpacity(0.1),
-    selectedIconTheme: const IconThemeData(color: AppColors.primary),
-    unselectedIconTheme: IconThemeData(color: AppColors.textSecondary.withOpacity(0.8)),
-    selectedLabelTextStyle: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
-    unselectedLabelTextStyle: TextStyle(color: AppColors.textSecondary.withOpacity(0.8)),
-
-  ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: AppColors.surface,
+      indicatorColor: AppColors.primary.withOpacity(0.1),
+      selectedIconTheme: const IconThemeData(color: AppColors.primary),
+      unselectedIconTheme: IconThemeData(
+        color: AppColors.textSecondary.withOpacity(0.8),
+      ),
+      selectedLabelTextStyle: const TextStyle(
+        color: AppColors.primary,
+        fontWeight: FontWeight.bold,
+      ),
+      unselectedLabelTextStyle: TextStyle(
+        color: AppColors.textSecondary.withOpacity(0.8),
+      ),
+    ),
 
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppColors.surface,
       indicatorColor: AppColors.primary.withOpacity(0.1),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      surfaceTintColor:Colors.transparent,
-
+      surfaceTintColor: Colors.transparent,
     ),
-
-
   );
-
 }
