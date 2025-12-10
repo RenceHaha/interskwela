@@ -14,7 +14,6 @@ class LoginFormSection extends StatefulWidget {
 }
 
 class _LoginFormSectionState extends State<LoginFormSection> {
-
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   String _message = '';
@@ -31,19 +30,20 @@ class _LoginFormSectionState extends State<LoginFormSection> {
     try {
       final response = await http.post(
         Uri.parse(url),
-        headers: <String, String>{
-          'Content-Type': 'application/json'
-        },
+        headers: <String, String>{'Content-Type': 'application/json'},
         body: jsonEncode(<String, String>{
-          'email' : email,
-          'password' : password
-        }) 
+          'email': email,
+          'password': password,
+        }),
       );
 
-      if(response.statusCode == 200) {
+      if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         String token = responseData['token'];
         String role = responseData['role'];
+        String firstName = responseData['firstName'];
+        String middleName = responseData['middleName'] ?? '';
+        String lastName = responseData['lastName'];
         print('Login Successfully. Token ${responseData['token']}');
 
         final prefs = await SharedPreferences.getInstance();
@@ -53,20 +53,30 @@ class _LoginFormSectionState extends State<LoginFormSection> {
 
         await prefs.setString('token', token);
         await prefs.setInt('userId', userId);
+        await prefs.setString('firstName', firstName);
+        await prefs.setString('middleName', middleName);
+        await prefs.setString('lastName', lastName);
         await prefs.setString('role', role);
 
         String route = '';
-        switch(responseData['role']){
-          case 'admin' : route = '/admin/home'; break;
-          case 'teacher' : route = '/teacher/home'; break;
-          case 'student' : route = '/student/home'; break;
+        switch (responseData['role']) {
+          case 'admin':
+            route = '/admin/home';
+            break;
+          case 'teacher':
+            route = '/teacher/home';
+            break;
+          case 'student':
+            route = '/student/home';
+            break;
         }
 
-        if(mounted){
-          Navigator.of(context).pushReplacementNamed(route, arguments: {'userId': userId});
+        if (mounted) {
+          Navigator.of(
+            context,
+          ).pushReplacementNamed(route, arguments: {'userId': userId});
         }
-
-      }else if(response.statusCode == 401){
+      } else if (response.statusCode == 401) {
         final responseData = jsonDecode(response.body);
         _emailController.clear();
         _passwordController.clear();
@@ -74,13 +84,12 @@ class _LoginFormSectionState extends State<LoginFormSection> {
           _message = responseData['error'];
         });
       }
-
     } catch (e) {
       setState(() {
         _message = 'An error occured: Could not connect to the server.';
       });
 
-      log('Error during api call $e');
+      print('Error during api call $e');
     }
   }
 
@@ -105,7 +114,10 @@ class _LoginFormSectionState extends State<LoginFormSection> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // "Login" Text
-                Text('Login', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                Text(
+                  'Login',
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                ),
                 SizedBox(height: 8),
               ],
             ),
@@ -113,7 +125,10 @@ class _LoginFormSectionState extends State<LoginFormSection> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Subtitle
-                Text('Enter your credentials to get in', style: TextStyle(color: Colors.grey)),
+                Text(
+                  'Enter your credentials to get in',
+                  style: TextStyle(color: Colors.grey),
+                ),
                 SizedBox(height: 30),
               ],
             ),
@@ -130,7 +145,10 @@ class _LoginFormSectionState extends State<LoginFormSection> {
                   borderSide: BorderSide.none, // Remove the border line
                 ),
                 hintText: 'aimerpaix@gmail.com',
-                contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 15,
+                ),
               ),
             ),
             SizedBox(height: 20),
@@ -149,12 +167,14 @@ class _LoginFormSectionState extends State<LoginFormSection> {
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide.none, // Remove the border line
                 ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 15,
+                ),
               ),
             ),
             Text(_message),
             SizedBox(height: 20),
-            
 
             // Remember Me and Login Button
             Row(
@@ -174,7 +194,9 @@ class _LoginFormSectionState extends State<LoginFormSection> {
                   backgroundColor: Colors.black, // Dark background
                   foregroundColor: Colors.white, // White text
                   padding: EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
                 child: Text('Login'),
               ),
@@ -190,7 +212,10 @@ class _LoginFormSectionState extends State<LoginFormSection> {
                   children: <TextSpan>[
                     TextSpan(
                       text: 'Create an account',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                       // Add onTap for navigation here
                     ),
                   ],

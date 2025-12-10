@@ -43,6 +43,9 @@ dependencies:
   open_file: ^3.5.10
   font_awesome_flutter: ^10.12.0
   google_generative_ai: ^0.4.7
+  flutter_dotenv: ^6.0.0
+  agora_rtc_engine: ^6.5.3
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
@@ -67,7 +70,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
+  assets:
+    - .env
     # - images/bg_pattern_pink.png
     # - images/a_dot_ham.jpeg
 

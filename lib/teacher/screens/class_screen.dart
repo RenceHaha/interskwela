@@ -8,11 +8,13 @@ import 'package:interskwela/teacher/screens/class_tab/class_work_tab.dart';
 class TeacherClassScreen extends StatefulWidget {
   final Classes specificCLass;
   final int userId;
+  final String username;
 
   const TeacherClassScreen({
     required this.specificCLass,
     required this.userId,
-    super.key
+    required this.username,
+    super.key,
   });
 
   @override
@@ -26,7 +28,9 @@ class _TeacherClassScreenState extends State<TeacherClassScreen> {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('${widget.specificCLass.subjectCode} - ${widget.specificCLass.sectionName}'),
+          title: Text(
+            '${widget.specificCLass.subjectCode} - ${widget.specificCLass.sectionName}',
+          ),
           bottom: TabBar(
             tabs: const [
               Tab(text: 'Stream'),
@@ -42,12 +46,16 @@ class _TeacherClassScreenState extends State<TeacherClassScreen> {
           children: [
             // TAB 1: The logic is now encapsulated here
             ClassStreamTab(
-              specificClass: widget.specificCLass, 
-              userId: widget.userId
+              specificClass: widget.specificCLass,
+              userId: widget.userId,
+              username: widget.username,
             ),
 
             // TAB 2: Classwork (Create a separate file for this later)
-            ClassworkTab(currentClass: widget.specificCLass, userId: widget.userId),
+            ClassworkTab(
+              currentClass: widget.specificCLass,
+              userId: widget.userId,
+            ),
 
             // TAB 3: People
             PeopleTab(specificClass: widget.specificCLass),

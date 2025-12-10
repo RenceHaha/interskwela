@@ -7,7 +7,6 @@ import 'dart:developer';
 import 'package:interskwela/widgets/class/class_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class StudentClassesScreen extends StatefulWidget {
   const StudentClassesScreen({super.key});
 
@@ -19,6 +18,7 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> {
   late Future<List<Classes>> _classes;
   String _message = '';
   int? userId;
+  String? username;
 
   @override
   void initState() {
@@ -31,6 +31,8 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       userId = prefs.getInt('userId');
+      username =
+          "${prefs.getString('firstName')} ${prefs.getString('lastName')}";
     });
   }
 
@@ -45,19 +47,17 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> {
 
     Map<String, dynamic> payload = {
       'action': 'get-student-classes',
-      'user_id': userId
+      'user_id': userId,
     };
-    
+
     try {
       final response = await http.post(
         Uri.parse(url),
-        headers: <String, String>{
-          'Content-Type': 'application/json'
-        },
+        headers: <String, String>{'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
 
-      if(response.statusCode == 200) {
+      if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         return data.map((json) => Classes.fromJson(json)).toList();
       } else {
@@ -67,7 +67,6 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> {
         });
         return []; // Return empty list on error
       }
-
     } catch (e) {
       setState(() {
         _message = 'An error occured: Could not connect to the server.';
@@ -91,13 +90,13 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          
+
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('No classes found.'));
           }
 
           final classesList = snapshot.data!;
-          
+
           // --- 1. Use GridView.builder instead of ListView.builder ---
           // Replace GridView.builder with this:
           return SingleChildScrollView(
@@ -112,7 +111,11 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => StudentClassScreen(specificCLass: cl, userId: userId!),
+                        builder: (context) => StudentClassScreen(
+                          specificCLass: cl,
+                          userId: userId!,
+                          username: username!,
+                        ),
                       ),
                     ),
                   },

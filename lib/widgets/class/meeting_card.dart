@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
-class ClassCodeCard extends StatelessWidget {
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:interskwela/meeting/meeting_screen.dart';
+
+class MeetingCard extends StatelessWidget {
   final String code;
-  const ClassCodeCard({
+  final String username;
+  final String role;
+
+  const MeetingCard({
     required this.code,
-    super.key
+    required this.username,
+    required this.role,
+    super.key,
   });
 
   @override
@@ -36,8 +44,19 @@ class ClassCodeCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.copy),
-                  onPressed: () {},
+                  icon: FaIcon(FontAwesomeIcons.video),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MeetingScreen(
+                          classCode: code,
+                          username: username,
+                          role: role,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
