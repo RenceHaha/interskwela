@@ -137,9 +137,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     );
 
     await _engine!.setClientRole(
-      role: widget.role == 'teacher'
-          ? ClientRoleType.clientRoleBroadcaster
-          : ClientRoleType.clientRoleAudience,
+      role: ClientRoleType.clientRoleBroadcaster,
       options: null,
     );
 
@@ -152,9 +150,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
       options: ChannelMediaOptions(
         publishCameraTrack: true,
         publishMicrophoneTrack: true,
-        clientRoleType: widget.role == 'teacher'
-            ? ClientRoleType.clientRoleBroadcaster
-            : ClientRoleType.clientRoleAudience,
+        clientRoleType: ClientRoleType.clientRoleBroadcaster,
       ),
     );
   }
