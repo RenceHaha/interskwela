@@ -56,6 +56,9 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
   List<Rubric> _availableRubrics = []; // List of rubrics from DB/Local
   Rubric? _selectedRubric;
 
+  // Chat bot messages - stored here for persistence across chat screen opens
+  List<ChatMessage> _chatMessages = [];
+
   @override
   void initState() {
     super.initState();
@@ -477,11 +480,28 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
           if (mounted) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const ChatBotScreen()),
+              MaterialPageRoute(
+                builder: (context) => ChatBotScreen(
+                  creationMode: widget.creationMode,
+                  messages: _chatMessages, // Pass existing messages
+                  onMessagesChanged: (messages) {
+                    // Store updated messages for persistence
+                    _chatMessages = messages;
+                  },
+                  onAssignmentGenerated: (assignment) {
+                    // Apply content to form - chat stays open
+                    setState(() {
+                      _titleController.text = assignment.title;
+                      _instructionController.text = assignment.instruction;
+                    });
+                  },
+                ),
+              ),
             );
           }
         },
-        child: const Icon(Icons.message_outlined),
+        tooltip: 'AI Assistant',
+        child: const Icon(Icons.auto_awesome),
       ),
     );
   }
@@ -498,8 +518,9 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
           const SizedBox(height: 16),
           CustomTextFormField(
             controller: _instructionController,
-            maxLines: 4,
-            hintText: 'Instructions',
+            minLines: 4,
+            maxLines: null, // Allow unlimited lines - Enter creates new lines
+            hintText: 'Instructions (Press Enter for new lines)',
           ),
           const SizedBox(height: 16),
           Card(

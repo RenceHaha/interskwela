@@ -1,11 +1,60 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
 import '../../../themes/app_theme.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+
+/// Model class for AI-generated assignment content
+class GeneratedAssignment {
+  final String title;
+  final String instruction;
+
+  GeneratedAssignment({required this.title, required this.instruction});
+
+  factory GeneratedAssignment.fromJson(Map<String, dynamic> json) {
+    return GeneratedAssignment(
+      title: _stripMarkdown(json['title'] ?? ''),
+      instruction: _stripMarkdown(json['instruction'] ?? ''),
+    );
+  }
+
+  /// Remove markdown formatting characters from text
+  static String _stripMarkdown(String text) {
+    return text
+        // Remove headers (### Header)
+        .replaceAll(RegExp(r'^#{1,6}\s*', multiLine: true), '')
+        // Remove bold (**text** or __text__)
+        .replaceAll(RegExp(r'\*\*(.+?)\*\*'), r'$1')
+        .replaceAll(RegExp(r'__(.+?)__'), r'$1')
+        // Remove italic (*text* or _text_) - be careful with underscores
+        .replaceAll(RegExp(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)'), r'$1')
+        // Remove inline code (`code`)
+        .replaceAll(RegExp(r'`(.+?)`'), r'$1')
+        // Replace markdown bullets with proper bullets
+        .replaceAll(RegExp(r'^[\-\*]\s+', multiLine: true), '• ')
+        // Clean up escape sequences
+        .replaceAll('\\n', '\n')
+        .replaceAll('\\t', '\t')
+        .trim();
+  }
+
+  Map<String, dynamic> toJson() => {'title': title, 'instruction': instruction};
+}
 
 class ChatBotScreen extends StatefulWidget {
-  const ChatBotScreen({super.key});
+  final String creationMode;
+  final Function(GeneratedAssignment)? onAssignmentGenerated;
+  final List<ChatMessage>? messages; // External messages for persistence
+  final Function(List<ChatMessage>)?
+  onMessagesChanged; // Callback when messages change
+
+  const ChatBotScreen({
+    super.key,
+    this.creationMode = 'assignment',
+    this.onAssignmentGenerated,
+    this.messages,
+    this.onMessagesChanged,
+  });
 
   @override
   State<ChatBotScreen> createState() => _ChatBotScreenState();
@@ -15,7 +64,7 @@ class _ChatBotScreenState extends State<ChatBotScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<ChatMessage> _messages = [];
+  late List<ChatMessage> _messages;
   final List<PlatformFile> _attachedFiles = [];
   bool _isLoading = false;
   bool _hasStartedChat = false;
@@ -23,17 +72,38 @@ class _ChatBotScreenState extends State<ChatBotScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  // Suggested prompts for the initial state
-  final List<String> _suggestedPrompts = [
-    "Help me create a lesson plan",
-    "Generate quiz questions",
-    "Summarize this document",
-    "Explain a concept simply",
-  ];
+  // Gemini API configuration
+  static const String _geminiApiKey = 'AIzaSyAItImsG0lyRwqIFG9zK-BhFa4MHkpDcBc';
+  late GenerativeModel _model;
+  late GenerativeModel _jsonModel; // Model for JSON responses
+  late ChatSession _chatSession;
+
+  // Suggested prompts based on creation mode
+  List<String> get _suggestedPrompts {
+    if (widget.creationMode == 'assignment') {
+      return [
+        "Create an assignment about programming basics",
+        "Generate a writing assignment",
+        "Make a research assignment",
+        "Create a practical coding task",
+      ];
+    }
+    return [
+      "Help me create a lesson plan",
+      "Generate quiz questions",
+      "Summarize this document",
+      "Explain a concept simply",
+    ];
+  }
 
   @override
   void initState() {
     super.initState();
+    // Use external messages if provided, otherwise create empty list
+    _messages = widget.messages != null ? List.from(widget.messages!) : [];
+    _hasStartedChat = _messages.isNotEmpty;
+
+    _initializeGemini();
     _pulseController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
@@ -41,6 +111,47 @@ class _ChatBotScreenState extends State<ChatBotScreen>
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // Scroll to bottom if there are existing messages
+    if (_messages.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+  }
+
+  /// Notify parent when messages change (for persistence)
+  void _notifyMessagesChanged() {
+    widget.onMessagesChanged?.call(_messages);
+  }
+
+  void _initializeGemini() {
+    // Regular chat model
+    _model = GenerativeModel(
+      model: 'gemini-2.5-flash',
+      apiKey: _geminiApiKey,
+      systemInstruction: Content.system(
+        'You are a helpful AI teaching assistant. You help teachers with lesson planning, '
+        'creating assignments, generating quiz questions, summarizing documents, and explaining concepts. '
+        'Be concise, helpful, and educational in your responses.',
+      ),
+    );
+
+    // JSON model for structured assignment generation
+    _jsonModel = GenerativeModel(
+      model: 'gemini-2.5-flash',
+      apiKey: _geminiApiKey,
+      generationConfig: GenerationConfig(responseMimeType: 'application/json'),
+    );
+
+    _chatSession = _model.startChat();
+  }
+
+  void _resetChat() {
+    setState(() {
+      _messages.clear();
+      _hasStartedChat = false;
+    });
+    _chatSession = _model.startChat();
+    _notifyMessagesChanged(); // Sync with parent
   }
 
   @override
@@ -93,19 +204,43 @@ class _ChatBotScreenState extends State<ChatBotScreen>
       _attachedFiles.clear();
       _messageController.clear();
     });
+    _notifyMessagesChanged(); // Sync with parent
 
     _scrollToBottom();
 
     try {
-      // Prepare the API request
-      final response = await _callAIApi(text, userMessage.files);
+      // For assignment mode, generate structured JSON content
+      if (widget.creationMode == 'assignment') {
+        final assignment = await _generateAssignment(text, userMessage.files);
 
-      setState(() {
-        _messages.add(
-          ChatMessage(text: response, isUser: false, timestamp: DateTime.now()),
-        );
-        _isLoading = false;
-      });
+        setState(() {
+          _messages.add(
+            ChatMessage(
+              text: '',
+              isUser: false,
+              timestamp: DateTime.now(),
+              generatedAssignment: assignment,
+            ),
+          );
+          _isLoading = false;
+        });
+        _notifyMessagesChanged(); // Sync with parent
+      } else {
+        // Regular chat response
+        final response = await _callGeminiApi(text, userMessage.files);
+
+        setState(() {
+          _messages.add(
+            ChatMessage(
+              text: response,
+              isUser: false,
+              timestamp: DateTime.now(),
+            ),
+          );
+          _isLoading = false;
+        });
+        _notifyMessagesChanged(); // Sync with parent
+      }
 
       _scrollToBottom();
     } catch (e) {
@@ -120,48 +255,133 @@ class _ChatBotScreenState extends State<ChatBotScreen>
         );
         _isLoading = false;
       });
+      _notifyMessagesChanged(); // Sync with parent
       debugPrint('Error sending message: $e');
     }
   }
 
-  Future<String> _callAIApi(String message, List<PlatformFile> files) async {
-    const String url = 'http://localhost:3000/api/ai';
-
-    // Convert files to base64
-    List<Map<String, dynamic>> fileData = [];
-    for (var file in files) {
-      if (file.bytes != null) {
-        fileData.add({
-          'name': file.name,
-          'data': base64Encode(file.bytes!),
-          'extension': file.extension,
-        });
-      }
-    }
-
-    final payload = {
-      'action': 'chat',
-      'message': message,
-      'attachments': fileData,
-    };
-
+  /// Generate assignment content as structured JSON
+  Future<GeneratedAssignment> _generateAssignment(
+    String message,
+    List<PlatformFile> files,
+  ) async {
     try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
+      List<Part> parts = [];
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['response'] ?? 'No response received';
-      } else {
-        throw Exception('Failed to get response');
+      // Add file parts first
+      for (var file in files) {
+        if (file.bytes != null) {
+          final mimeType = _getMimeType(file.extension);
+          if (mimeType != null) {
+            parts.add(DataPart(mimeType, file.bytes!));
+            parts.add(TextPart('(Attached file: ${file.name})'));
+          }
+        }
+      }
+
+      // Assignment generation prompt - NO MARKDOWN
+      final prompt =
+          '''
+Based on the following request, create a practical assignment for students.
+
+IMPORTANT FORMATTING RULES:
+- DO NOT use any markdown formatting (no **, ##, ###, *, _, etc.)
+- Use plain text only
+- Use line breaks to separate sections
+- Use "•" for bullet points if needed
+- Write in a clear, professional tone
+
+The instruction should include:
+- Overview/Introduction
+- Objectives (what students will learn)
+- Requirements (what they need to do)
+- Deliverables (what to submit)
+
+Request: ${message.isNotEmpty ? message : "Create an assignment based on the attached document."}
+
+Return ONLY valid JSON in this exact format:
+{
+  "title": "Assignment title here",
+  "instruction": "Plain text instruction with proper line breaks"
+}
+''';
+
+      parts.add(TextPart(prompt));
+
+      final content = Content.multi(parts);
+      final response = await _jsonModel.generateContent([content]);
+
+      final jsonText = response.text ?? '{}';
+
+      // Parse the JSON response
+      try {
+        final jsonData = jsonDecode(jsonText);
+        return GeneratedAssignment.fromJson(jsonData);
+      } catch (e) {
+        // If JSON parsing fails, try to extract content
+        debugPrint('JSON parse error: $e');
+        debugPrint('Raw response: $jsonText');
+        return GeneratedAssignment(
+          title: 'Generated Assignment',
+          instruction: jsonText,
+        );
       }
     } catch (e) {
-      // For demo purposes, return a mock response
-      await Future.delayed(const Duration(seconds: 1));
-      return "I received your message: \"$message\"${files.isNotEmpty ? " along with ${files.length} file(s)." : "."} This is a placeholder response. Please configure your AI API endpoint to get real responses.";
+      debugPrint('Gemini API Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<String> _callGeminiApi(
+    String message,
+    List<PlatformFile> files,
+  ) async {
+    try {
+      List<Part> parts = [];
+
+      for (var file in files) {
+        if (file.bytes != null) {
+          final mimeType = _getMimeType(file.extension);
+          if (mimeType != null) {
+            parts.add(DataPart(mimeType, file.bytes!));
+            parts.add(TextPart('(Attached file: ${file.name})'));
+          }
+        }
+      }
+
+      if (message.isNotEmpty) {
+        parts.add(TextPart(message));
+      } else if (files.isNotEmpty) {
+        parts.add(TextPart('Please analyze the attached file(s).'));
+      }
+
+      final content = Content.multi(parts);
+      final response = await _chatSession.sendMessage(content);
+
+      return response.text ?? 'No response received from AI.';
+    } catch (e) {
+      debugPrint('Gemini API Error: $e');
+      rethrow;
+    }
+  }
+
+  String? _getMimeType(String? extension) {
+    switch (extension?.toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return null;
     }
   }
 
@@ -180,6 +400,35 @@ class _ChatBotScreenState extends State<ChatBotScreen>
   void _handleSuggestedPrompt(String prompt) {
     _messageController.text = prompt;
     _sendMessage(prompt);
+  }
+
+  /// Use the generated assignment - applies to form via callback without closing chat
+  void _useGeneratedAssignment(GeneratedAssignment assignment) {
+    if (widget.onAssignmentGenerated != null) {
+      // Use callback - chat stays open
+      widget.onAssignmentGenerated!(assignment);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white, size: 20),
+              SizedBox(width: 12),
+              Text('Content applied to form!'),
+            ],
+          ),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // No callback, use Navigator.pop as fallback
+      Navigator.pop(context, assignment);
+    }
   }
 
   @override
@@ -228,10 +477,10 @@ class _ChatBotScreenState extends State<ChatBotScreen>
             ),
           ),
           const SizedBox(width: 12),
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'AI Assistant',
                 style: TextStyle(
                   fontSize: 16,
@@ -240,8 +489,13 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                 ),
               ),
               Text(
-                'Powered by AI',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                widget.creationMode == 'assignment'
+                    ? 'Assignment Generator'
+                    : 'Powered by Gemini',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -250,12 +504,7 @@ class _ChatBotScreenState extends State<ChatBotScreen>
       actions: [
         IconButton(
           icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-          onPressed: () {
-            setState(() {
-              _messages.clear();
-              _hasStartedChat = false;
-            });
-          },
+          onPressed: _resetChat,
           tooltip: 'New conversation',
         ),
         const SizedBox(width: 8),
@@ -284,7 +533,7 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                       colors: [
                         AppColors.primary,
                         AppColors.primaryLight,
-                        const Color(0xFF7B68EE), // Medium slate blue
+                        const Color(0xFF7B68EE),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -308,9 +557,11 @@ class _ChatBotScreenState extends State<ChatBotScreen>
             },
           ),
           const SizedBox(height: 32),
-          const Text(
-            'Ask anything',
-            style: TextStyle(
+          Text(
+            widget.creationMode == 'assignment'
+                ? 'Generate Assignment'
+                : 'Ask anything',
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
@@ -318,14 +569,16 @@ class _ChatBotScreenState extends State<ChatBotScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            'Upload files or ask questions to get started',
+            widget.creationMode == 'assignment'
+                ? 'Upload a file or describe what kind of assignment you need'
+                : 'Upload files or ask questions to get started',
             style: TextStyle(
               fontSize: 14,
               color: AppColors.textSecondary.withOpacity(0.8),
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 48),
-          // Suggested prompts
           Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -389,6 +642,11 @@ class _ChatBotScreenState extends State<ChatBotScreen>
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
 
+    // If this is an AI response with generated assignment, show a card
+    if (!isUser && message.generatedAssignment != null) {
+      return _buildAssignmentCard(message.generatedAssignment!);
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -423,7 +681,6 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
-                // File attachments (for user messages)
                 if (message.files.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -435,7 +692,6 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                       }).toList(),
                     ),
                   ),
-                // Message bubble
                 Container(
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.7,
@@ -495,6 +751,218 @@ class _ChatBotScreenState extends State<ChatBotScreen>
     );
   }
 
+  /// Build a clickable card for generated assignment content
+  Widget _buildAssignmentCard(GeneratedAssignment assignment) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primary, AppColors.primaryLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.auto_awesome,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _useGeneratedAssignment(assignment),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary.withOpacity(0.05),
+                        AppColors.primaryLight.withOpacity(0.1),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.2),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.1),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.assignment,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Generated Assignment',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.touch_app,
+                                  size: 12,
+                                  color: Colors.green.shade700,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Tap to use',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.green.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Title
+                      const Text(
+                        'Title',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        assignment.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Divider
+                      Container(height: 1, color: Colors.grey.shade200),
+                      const SizedBox(height: 16),
+
+                      // Instruction
+                      const Text(
+                        'Instructions',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        assignment.instruction,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.6,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 10,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Action hint
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Click to apply this content to your form',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTypingIndicator() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -528,26 +996,26 @@ class _ChatBotScreenState extends State<ChatBotScreen>
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (index) {
-                return TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: 1),
-                  duration: Duration(milliseconds: 600 + (index * 200)),
-                  builder: (context, value, child) {
-                    return Container(
-                      margin: EdgeInsets.only(right: index < 2 ? 4 : 0),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.6),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    );
-                  },
-                );
-              }),
+              children: [
+                Text(
+                  widget.creationMode == 'assignment'
+                      ? 'Generating assignment...'
+                      : 'Thinking...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -572,7 +1040,6 @@ class _ChatBotScreenState extends State<ChatBotScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Attached files preview
             if (_attachedFiles.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -594,11 +1061,9 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                   ),
                 ),
               ),
-            // Input row
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Attach button
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -619,7 +1084,6 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Text input
                 Expanded(
                   child: Container(
                     constraints: const BoxConstraints(maxHeight: 120),
@@ -632,7 +1096,9 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                       maxLines: null,
                       textInputAction: TextInputAction.newline,
                       decoration: InputDecoration(
-                        hintText: 'Ask me anything...',
+                        hintText: widget.creationMode == 'assignment'
+                            ? 'Describe the assignment you need...'
+                            : 'Ask me anything...',
                         hintStyle: TextStyle(
                           color: AppColors.textSecondary.withOpacity(0.6),
                         ),
@@ -651,7 +1117,6 @@ class _ChatBotScreenState extends State<ChatBotScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Send button
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -772,6 +1237,7 @@ class ChatMessage {
   final List<PlatformFile> files;
   final DateTime timestamp;
   final bool isError;
+  final GeneratedAssignment? generatedAssignment;
 
   ChatMessage({
     required this.text,
@@ -779,5 +1245,6 @@ class ChatMessage {
     this.files = const [],
     required this.timestamp,
     this.isError = false,
+    this.generatedAssignment,
   });
 }

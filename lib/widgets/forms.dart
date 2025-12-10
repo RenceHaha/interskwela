@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -15,7 +13,7 @@ InputDecoration buildInputDecoration(
     hintText: hintText,
     hintStyle: TextStyle(color: Colors.grey[500]),
     filled: true,
-    fillColor: enabled ?Colors.white : Colors.grey[200],
+    fillColor: enabled ? Colors.white : Colors.grey[200],
     suffixIcon: suffixIcon,
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
@@ -76,20 +74,24 @@ class CustomTextFormField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Use multiline keyboard if maxLines is null (unlimited) or > 1
+    final isMultiline = maxLines == null || (maxLines != null && maxLines! > 1);
+
     return TextFormField(
       controller: controller,
-      keyboardType: keyboardType,
+      keyboardType: isMultiline ? TextInputType.multiline : keyboardType,
+      textInputAction: isMultiline
+          ? TextInputAction.newline
+          : TextInputAction.next,
       maxLines: maxLines,
       minLines: minLines,
       readOnly: readOnly,
 
-      style: TextStyle(
-        color: readOnly ? Colors.grey[600] : Colors.black
-      ),
+      style: TextStyle(color: readOnly ? Colors.grey[600] : Colors.black),
 
       decoration: buildInputDecoration(
         hintText,
-        enabled: !readOnly
+        enabled: !readOnly,
       ), // Use the shared function
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -112,7 +114,6 @@ class CustomRoleDropdownFormField extends StatelessWidget {
     required this.items,
     required this.selectedItem,
     required this.onChanged,
-
   });
 
   final List<String> items;
@@ -125,10 +126,7 @@ class CustomRoleDropdownFormField extends StatelessWidget {
       value: selectedItem,
       decoration: buildInputDecoration('Role'),
       items: items.map((String role) {
-        return DropdownMenuItem<String>(
-          value: role,
-          child: Text(role),
-        );
+        return DropdownMenuItem<String>(value: role, child: Text(role));
       }).toList(),
       onChanged: onChanged,
       validator: (value) {
@@ -165,7 +163,7 @@ class CustomDatePickerFormField extends StatelessWidget {
           context: context,
           initialDate: DateTime.now(),
           firstDate: DateTime(1900), // Adjust as needed
-          lastDate: DateTime(2100),  // Adjust as needed
+          lastDate: DateTime(2100), // Adjust as needed
         );
 
         if (pickedDate != null) {
