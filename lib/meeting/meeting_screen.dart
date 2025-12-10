@@ -37,6 +37,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
   bool _isCameraMuted = false;
   bool _isScreenSharing = false;
 
+  // UID to username mapping for remote participants
+  final Map<int, String> _remoteUsers = {};
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +57,71 @@ class _MeetingScreenState extends State<MeetingScreen> {
   Future<void> _loadEnv() async {
     WidgetsFlutterBinding.ensureInitialized();
     await dotenv.load(fileName: ".env");
+  }
+
+  /// Register this user in the meeting room
+  Future<void> _registerUser() async {
+    try {
+      await http.post(
+        Uri.parse("${dotenv.env['SERVER_URL']}/api/meeting"),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(<String, dynamic>{
+          'action': 'register',
+          'channelName': widget.classCode,
+          'uid': _localUid,
+          'username': widget.username,
+          'role': widget.role,
+        }),
+      );
+    } catch (e) {
+      debugPrint('Failed to register user: $e');
+    }
+  }
+
+  /// Fetch username for a remote user by UID
+  Future<String> _fetchRemoteUsername(int uid) async {
+    try {
+      final response = await http.post(
+        Uri.parse("${dotenv.env['SERVER_URL']}/api/meeting"),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(<String, dynamic>{
+          'action': 'get-user',
+          'channelName': widget.classCode,
+          'uid': uid,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['username'] ?? 'Participant';
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch remote username: $e');
+    }
+    return 'Participant';
+  }
+
+  /// Unregister this user when leaving
+  Future<void> _unregisterUser() async {
+    try {
+      await http.post(
+        Uri.parse("${dotenv.env['SERVER_URL']}/api/meeting"),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(<String, dynamic>{
+          'action': 'unregister',
+          'channelName': widget.classCode,
+          'uid': _localUid,
+        }),
+      );
+    } catch (e) {
+      debugPrint('Failed to unregister user: $e');
+    }
   }
 
   Future<Map<String, dynamic>?> _fetchToken() async {
@@ -77,7 +145,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         return jsonDecode(response.body);
       } else {
         setState(() {
-          _message = 'Failed to connect: ${response.statusCode}';
+          _message = 'Failed to connect: ${response.statusCode} ';
         });
         return null;
       }
@@ -105,19 +173,26 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     _engine!.registerEventHandler(
       RtcEngineEventHandler(
-        onUserJoined: (connection, remoteUid, elapsed) {
+        onUserJoined: (connection, remoteUid, elapsed) async {
+          // Fetch the username for this remote user
+          final username = await _fetchRemoteUsername(remoteUid);
           setState(() {
             _remoteUid = remoteUid;
-            _message = 'Participant joined';
+            _remoteUsers[remoteUid] = username;
+            _message = '$username joined';
           });
         },
         onUserOffline: (connection, remoteUid, reason) {
+          final username = _remoteUsers[remoteUid] ?? 'Participant';
           setState(() {
+            _remoteUsers.remove(remoteUid);
             _remoteUid = null;
-            _message = 'Participant left the meeting';
+            _message = '$username left the meeting';
           });
         },
         onJoinChannelSuccess: (connection, elapsed) {
+          // Register this user so others can see their name
+          _registerUser();
           setState(() {
             _isJoined = true;
             _message = 'Connected to ${widget.classCode}';
@@ -156,6 +231,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Future<void> _leaveChannel() async {
+    // Unregister this user from the meeting
+    await _unregisterUser();
+
     if (_engine != null) {
       await _engine!.leaveChannel();
       await _engine!.release();
@@ -163,6 +241,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     setState(() {
       _isJoined = false;
       _remoteUid = null;
+      _remoteUsers.clear();
       _message = 'Left the meeting';
     });
   }
@@ -282,7 +361,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (_remoteUid != null) {
       tiles.add(
         VideoTileCard(
-          participantName: 'Participant',
+          participantName: _remoteUsers[_remoteUid] ?? 'Participant',
           isActiveSpeaker: true,
           videoWidget: _engine != null
               ? AgoraVideoView(

@@ -11,7 +11,7 @@ class ClassworkCard extends StatefulWidget {
   const ClassworkCard({
     required this.classwork,
     required this.onTap,
-    required this.userRole, 
+    required this.userRole,
     super.key,
   });
 
@@ -25,9 +25,11 @@ class _ClassworkCardState extends State<ClassworkCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isAssignment = widget.classwork.type == 'assignment' || widget.classwork.type == 'quiz';
+    final isAssignment =
+        widget.classwork.type == 'assignment' ||
+        widget.classwork.type == 'quiz';
     final isQuestion = widget.classwork.type == 'question';
-    
+
     // Icon Selection
     IconData iconData = Icons.assignment;
     if (isQuestion) iconData = Icons.help_outline;
@@ -43,11 +45,19 @@ class _ClassworkCardState extends State<ClassworkCard> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: _isExpanded || _isHovering ? AppColors.primary.withOpacity(0.5) : Colors.grey.shade200,
+            color: _isExpanded || _isHovering
+                ? AppColors.primary.withOpacity(0.5)
+                : Colors.grey.shade200,
           ),
-          boxShadow: _isHovering 
-            ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
-            : [],
+          boxShadow: _isHovering
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
         ),
         child: Column(
           children: [
@@ -59,7 +69,7 @@ class _ClassworkCardState extends State<ClassworkCard> {
                 });
               },
               borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(8), 
+                topLeft: const Radius.circular(8),
                 topRight: const Radius.circular(8),
                 bottomLeft: Radius.circular(_isExpanded ? 0 : 8),
                 bottomRight: Radius.circular(_isExpanded ? 0 : 8),
@@ -72,13 +82,15 @@ class _ClassworkCardState extends State<ClassworkCard> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: _isExpanded ? AppColors.primary : Colors.grey.shade400,
+                        color: _isExpanded
+                            ? AppColors.primary
+                            : Colors.grey.shade400,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(iconData, color: Colors.white, size: 20),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Title
                     Expanded(
                       child: Text(
@@ -94,8 +106,14 @@ class _ClassworkCardState extends State<ClassworkCard> {
                     // Date / Menu
                     if (!_isExpanded) ...[
                       Text(
-                         _formatDate(widget.classwork.dateUpdated, widget.classwork.dueDate),
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        _formatDate(
+                          widget.classwork.dateUpdated,
+                          widget.classwork.dueDate,
+                        ),
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -114,11 +132,11 @@ class _ClassworkCardState extends State<ClassworkCard> {
             if (_isExpanded)
               Container(
                 decoration: BoxDecoration(
-                   color: Colors.grey.shade50,
-                   borderRadius: const BorderRadius.only(
-                     bottomLeft: Radius.circular(8),
-                     bottomRight: Radius.circular(8)
-                   )
+                  color: Colors.grey.shade50,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -135,27 +153,37 @@ class _ClassworkCardState extends State<ClassworkCard> {
                               children: [
                                 Text(
                                   "Posted ${_formatDateFull(widget.classwork.dateUpdated)}",
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  widget.classwork.instruction ?? "No instructions",
-                                  style: const TextStyle(fontSize: 14, color: Colors.black54),
+                                  widget.classwork.instruction ??
+                                      "No instructions",
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black54,
+                                  ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
-                          
+
                           // --- SHOW STATS ONLY FOR TEACHER/ADMIN ---
-                          if (widget.userRole == 'teacher' || widget.userRole == 'admin') ...[
+                          if (widget.userRole == 'teacher' ||
+                              widget.userRole == 'admin') ...[
                             // Divider
                             Container(
                               height: 60,
                               width: 1,
                               color: Colors.grey.shade300,
-                              margin: const EdgeInsets.symmetric(horizontal: 24),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
                             ),
 
                             // Right side: Counters
@@ -164,20 +192,25 @@ class _ClassworkCardState extends State<ClassworkCard> {
                               height: 60,
                               width: 1,
                               color: Colors.grey.shade300,
-                              margin: const EdgeInsets.symmetric(horizontal: 24),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
                             ),
                             _buildStatCounter("0", "Assigned"),
                           ],
                         ],
                       ),
                     ),
-                    
+
                     // Footer Button (View Instructions)
                     const Divider(height: 1),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 12.0,
+                        ),
                         child: TextButton(
                           onPressed: widget.onTap, // Go to full details page
                           child: Text(
@@ -203,10 +236,7 @@ class _ClassworkCardState extends State<ClassworkCard> {
           count,
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
         ),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }
@@ -218,7 +248,7 @@ class _ClassworkCardState extends State<ClassworkCard> {
     return "Posted ${DateFormat('d MMM').format(created)}";
   }
 
-   String _formatDateFull(DateTime date) {
+  String _formatDateFull(DateTime date) {
     return DateFormat('d MMM').format(date);
   }
 }
