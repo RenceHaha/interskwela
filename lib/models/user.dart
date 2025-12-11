@@ -1,4 +1,3 @@
-
 class User {
   final int userId;
   final String email;
@@ -6,6 +5,9 @@ class User {
   final String? middlename;
   final String lastname;
   final String? suffix;
+  final String dob;
+  final String address;
+  final String? contact;
   final String role;
 
   User({
@@ -15,6 +17,9 @@ class User {
     required this.lastname,
     this.middlename,
     this.suffix,
+    required this.dob,
+    required this.address,
+    this.contact,
     required this.role,
   });
 
@@ -25,6 +30,9 @@ class User {
       middlename: json['middlename'],
       lastname: json['lastname'],
       suffix: json['suffix'],
+      dob: json['dob'],
+      address: json['address'],
+      contact: json['contact'] ?? '',
       email: json['email'],
       role: json['role'],
     );

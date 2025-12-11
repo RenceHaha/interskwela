@@ -95,6 +95,7 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
                       code: widget.specificClass.classCode,
                       username: widget.username,
                       role: 'student',
+                      selectedClass: widget.specificClass,
                     ),
                     const SizedBox(height: 24),
                     UpcomingCard(),

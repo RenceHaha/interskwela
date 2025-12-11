@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:interskwela/models/announcement.dart';
+import 'package:interskwela/themes/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AnnouncementPostCard extends StatelessWidget {
   final Announcement announcement;
-  
-  const AnnouncementPostCard({
-    required this.announcement,
-    super.key
-  });
+
+  const AnnouncementPostCard({required this.announcement, super.key});
 
   Future<void> _launchAttachment(String path) async {
-    final Uri url = Uri.parse("http://localhost:3000$path"); 
+    final Uri url = Uri.parse("http://localhost:3000$path");
     try {
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         throw Exception('Could not launch $url');
@@ -21,122 +19,187 @@ class AnnouncementPostCard extends StatelessWidget {
     }
   }
 
-  // Helper widget to build a single attachment card
   Widget _buildFileCard(String path) {
-    // Extract filename
     String fileName = path.split('/').last;
-    // Remove timestamp prefix if present (e.g. 1732983-name.png -> name.png)
-    // This is optional, purely cosmetic
     if (fileName.contains('-')) {
       fileName = fileName.substring(fileName.indexOf('-') + 1);
     }
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: InkWell(
-        onTap: () => _launchAttachment(path),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.grey.shade50,
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.insert_drive_file, color: Color(0xFF1C3353)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      fileName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1C3353),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Text(
-                      "Click to open attachment",
-                      style: TextStyle(fontSize: 10, color: Colors.grey),
-                    ),
-                  ],
+      padding: const EdgeInsets.only(top: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _launchAttachment(path),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDim,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.insert_drive_file_outlined,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fileName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Tap to open",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.open_in_new_rounded,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Prepare the list of attachments to display
     List<String> filesToDisplay = [];
-    
+
     if (announcement.attachments.isNotEmpty) {
       filesToDisplay = announcement.attachments;
-    } else if (announcement.attachmentPath != null && announcement.attachmentPath!.isNotEmpty) {
-      // Fallback for old announcements with single path
+    } else if (announcement.attachmentPath != null &&
+        announcement.attachmentPath!.isNotEmpty) {
       filesToDisplay = [announcement.attachmentPath!];
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.only(bottom: 16),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  backgroundColor: const Color(0xFF1C3353),
-                  foregroundImage: NetworkImage(announcement.profilePath ?? 'http://localhost:3000/profile_images/student.png'),
+                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  foregroundImage: NetworkImage(
+                    announcement.profilePath ??
+                        'http://localhost:3000/profile_images/student.png',
+                  ),
                   radius: 20,
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${announcement.authorFirstName} ${announcement.authorLastName}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      '${announcement.dateUpdated.day}/${announcement.dateUpdated.month} ${announcement.dateUpdated.hour}:${announcement.dateUpdated.minute.toString().padLeft(2, '0')}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${announcement.authorFirstName} ${announcement.authorLastName}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatDate(announcement.dateUpdated),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  onPressed: () {},
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {},
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.more_horiz,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            
-            const SizedBox(height: 16),
-            
-            // Body
+
+            const SizedBox(height: 14),
+
+            // Content
             Text(
               announcement.content,
-              style: const TextStyle(fontSize: 14),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+                height: 1.5,
+              ),
             ),
 
-            // == ATTACHMENTS LIST ==
-            if (filesToDisplay.isNotEmpty) ...[
-              const SizedBox(height: 8),
+            // Attachments
+            if (filesToDisplay.isNotEmpty)
               ...filesToDisplay.map((path) => _buildFileCard(path)),
-            ]
           ],
         ),
       ),

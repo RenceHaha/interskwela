@@ -6,16 +6,19 @@ import 'package:http/http.dart' as http;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:crypto/crypto.dart';
 import 'package:interskwela/widgets/meeting/meeting_widgets.dart';
+import 'package:interskwela/models/classes.dart';
 
 class MeetingScreen extends StatefulWidget {
   final String classCode;
   final String username;
   final String role;
+  final Classes selectedClass;
 
   const MeetingScreen({
     required this.classCode,
     required this.username,
     required this.role,
+    required this.selectedClass,
     super.key,
   });
 
@@ -238,12 +241,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
       await _engine!.leaveChannel();
       await _engine!.release();
     }
-    setState(() {
-      _isJoined = false;
-      _remoteUid = null;
-      _remoteUsers.clear();
-      _message = 'Left the meeting';
-    });
+    if (mounted) {
+      setState(() {
+        _isJoined = false;
+        _remoteUid = null;
+        _remoteUsers.clear();
+        _message = 'Left the meeting';
+      });
+    }
   }
 
   void _toggleMic() {
@@ -253,11 +258,17 @@ class _MeetingScreenState extends State<MeetingScreen> {
     _engine?.muteLocalAudioStream(_isMicMuted);
   }
 
-  void _toggleCamera() {
+  void _toggleCamera() async {
     setState(() {
       _isCameraMuted = !_isCameraMuted;
     });
-    _engine?.muteLocalVideoStream(_isCameraMuted);
+    if (_isCameraMuted) {
+      await _engine?.stopPreview();
+      await _engine?.enableLocalVideo(false);
+    } else {
+      await _engine?.enableLocalVideo(true);
+      await _engine?.startPreview();
+    }
   }
 
   void _toggleScreenShare() {
@@ -282,7 +293,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
           // Top header
           MeetingHeader(
             meetingCode: widget.classCode,
-            meetingTitle: 'Class: ${widget.classCode}',
+            meetingTitle:
+                '${widget.selectedClass.sectionName} - ${widget.selectedClass.subjectName}',
             onBack: () {
               if (_isJoined) {
                 _showLeaveConfirmation();
@@ -332,30 +344,33 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Widget _buildWelcomeScreen() {
-    return MeetingWelcomeScreen(classCode: widget.classCode, message: _message);
+    return MeetingWelcomeScreen(
+      classCode: widget.classCode,
+      message: _message,
+      selectedClass: widget.selectedClass,
+    );
   }
 
   Widget _buildVideoArea() {
     final List<VideoTileCard> tiles = [];
 
-    // Add local video tile
-    if (widget.role == 'teacher' || !_isCameraMuted) {
-      tiles.add(
-        VideoTileCard(
-          participantName: widget.username,
-          isLocal: true,
-          isMuted: _isMicMuted,
-          videoWidget: _engine != null
-              ? AgoraVideoView(
-                  controller: VideoViewController(
-                    rtcEngine: _engine!,
-                    canvas: const VideoCanvas(uid: 0),
-                  ),
-                )
-              : null,
-        ),
-      );
-    }
+    // Add local video tile - always show the card, but hide video when camera is off
+    tiles.add(
+      VideoTileCard(
+        participantName: widget.username,
+        isLocal: true,
+        isMuted: _isMicMuted,
+        isCameraOff: _isCameraMuted,
+        videoWidget: (_engine != null && !_isCameraMuted)
+            ? AgoraVideoView(
+                controller: VideoViewController(
+                  rtcEngine: _engine!,
+                  canvas: const VideoCanvas(uid: 0),
+                ),
+              )
+            : null,
+      ),
+    );
 
     // Add remote video tile
     if (_remoteUid != null) {

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:interskwela/admin/screens/dashboard_screen.dart';
 import 'package:interskwela/admin/screens/sections_screen.dart';
-// import 'sidebar.dart';
 import 'screens/classes_screen.dart';
 import 'screens/accounts_screen.dart';
 import 'screens/subjects_screen.dart';
 import 'package:interskwela/models/sidebar_menu_item.dart';
 import 'package:interskwela/widgets/sidebar.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -22,22 +22,24 @@ class _AdminPageState extends State<AdminPage> {
   int? userId;
 
   final List<MenuItem> menuItems = const [
-    MenuItem(icon: Icons.dashboard, label: 'Dashboard'),
-    MenuItem(icon: Icons.menu_book, label: 'Sections'),
-    MenuItem(icon: Icons.abc_rounded, label: 'Classes'),
-    MenuItem(icon: Icons.abc_rounded, label: 'Subjects'),
-    MenuItem(icon: Icons.people, label: 'Accounts'),
+    MenuItem(icon: Icons.dashboard_outlined, label: 'Dashboard'),
+    MenuItem(icon: FontAwesomeIcons.user, label: 'Accounts'),
+    MenuItem(icon: Icons.folder_shared_outlined, label: 'Classes'),
+    MenuItem(icon: FontAwesomeIcons.addressBook, label: 'Sections'),
+    MenuItem(icon: Icons.book_outlined, label: 'Subjects'),
+    MenuItem(icon: Icons.calendar_today_rounded, label: 'Schedules'),
+    MenuItem(icon: Icons.archive_outlined, label: 'Archived Classes'),
   ];
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState((){
+    setState(() {
       userId = prefs.getInt('userId');
     });
 
@@ -77,9 +79,9 @@ class _AdminPageState extends State<AdminPage> {
           //   onMenuSelected: handleMenuSelected,
           // ),
           Sidebar(
-            items: menuItems, 
-            activeMenu: activeMenu, 
-            onMenuSelected: handleMenuSelected
+            items: menuItems,
+            activeMenu: activeMenu,
+            onMenuSelected: handleMenuSelected,
           ),
           Expanded(child: _getScreen()),
         ],

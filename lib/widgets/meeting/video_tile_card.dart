@@ -6,6 +6,7 @@ class VideoTileCard extends StatelessWidget {
   final Widget? videoWidget;
   final String participantName;
   final bool isMuted;
+  final bool isCameraOff;
   final bool isActiveSpeaker;
   final bool isLocal;
   final String? avatarText;
@@ -15,6 +16,7 @@ class VideoTileCard extends StatelessWidget {
     this.videoWidget,
     required this.participantName,
     this.isMuted = false,
+    this.isCameraOff = false,
     this.isActiveSpeaker = false,
     this.isLocal = false,
     this.avatarText,
@@ -47,7 +49,7 @@ class VideoTileCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             // Video or Avatar placeholder
-            if (videoWidget != null)
+            if (videoWidget != null && !isCameraOff)
               videoWidget!
             else
               _buildAvatarPlaceholder(),
@@ -58,6 +60,14 @@ class VideoTileCard extends StatelessWidget {
             // Mute indicator
             if (isMuted)
               Positioned(right: 8, bottom: 8, child: _buildMuteIndicator()),
+
+            // Camera off indicator
+            if (isCameraOff)
+              Positioned(
+                right: isMuted ? 36 : 8,
+                bottom: 8,
+                child: _buildCameraOffIndicator(),
+              ),
 
             // Local indicator
             if (isLocal)
@@ -135,6 +145,17 @@ class VideoTileCard extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: const Icon(Icons.mic_off, color: Colors.white, size: 14),
+    );
+  }
+
+  Widget _buildCameraOffIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: MeetingTheme.mutedColor,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.videocam_off, color: Colors.white, size: 14),
     );
   }
 

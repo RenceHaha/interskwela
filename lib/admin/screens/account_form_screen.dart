@@ -1,36 +1,63 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // We need this package for date formatting
+import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
+import 'package:interskwela/models/user.dart';
+import 'package:interskwela/themes/app_theme.dart';
 import 'package:interskwela/widgets/forms.dart';
 
 class AccountFormScreen extends StatefulWidget {
-  const AccountFormScreen({super.key});
+  final User? user; // Optional user for edit mode
+
+  const AccountFormScreen({super.key, this.user});
+
   @override
   State<AccountFormScreen> createState() => _AccountFormScreenState();
 }
 
 class _AccountFormScreenState extends State<AccountFormScreen> {
-  // A global key for the form to handle validation
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false; 
-  // --- Controllers for each text field ---
+  bool _isLoading = false;
+
   final _firstNameController = TextEditingController();
   final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _suffixController = TextEditingController();
-  final _dobController = TextEditingController(); // For the date
+  final _dobController = TextEditingController();
   final _addressController = TextEditingController();
   final _contactController = TextEditingController();
   final _emailController = TextEditingController();
 
-  // State for the dropdown
   String? _selectedRole;
   final List<String> _roles = ['Student', 'Teacher', 'Admin'];
 
+  bool get isEditMode => widget.user != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (isEditMode) {
+      _populateFields();
+    }
+  }
+
+  void _populateFields() {
+    final user = widget.user!;
+    _firstNameController.text = user.firstname;
+    _middleNameController.text = user.middlename ?? '';
+    _lastNameController.text = user.lastname ?? '';
+    _suffixController.text = user.suffix ?? '';
+    _dobController.text = user.dob ?? '';
+    _addressController.text = user.address ?? '';
+    _contactController.text = user.contact ?? '';
+    _emailController.text = user.email;
+    _selectedRole = user.role.isNotEmpty
+        ? user.role[0].toUpperCase() + user.role.substring(1).toLowerCase()
+        : null;
+  }
+
   @override
   void dispose() {
-    // Clean up the controllers when the widget is disposed.
     _firstNameController.dispose();
     _middleNameController.dispose();
     _lastNameController.dispose();
@@ -42,27 +69,25 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
     super.dispose();
   }
 
-  // --- Main build method ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFF8F9FA), // Light grey background
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Create New Account'),
-        backgroundColor: Colors.white,
-        elevation: 1,
+        title: Text(isEditMode ? 'Edit Account' : 'Create New Account'),
+        backgroundColor: AppColors.surface,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(24.0), // A bit more padding
+          padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- Personal Details Section ---
                 buildSectionHeader('PERSONAL DETAILS'),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -71,7 +96,7 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
                         hintText: 'First Name',
                       ),
                     ),
-                    SizedBox(width: 16),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: CustomTextFormField(
                         controller: _lastNameController,
@@ -80,7 +105,7 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -89,7 +114,7 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
                         hintText: 'Middle Name (Optional)',
                       ),
                     ),
-                    SizedBox(width: 16),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: CustomTextFormField(
                         controller: _suffixController,
@@ -98,72 +123,61 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
-                _buildDatePicker(), // Date of Birth field
+                const SizedBox(height: 16),
+                _buildDatePicker(),
 
-                // --- Residential Address Section ---
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 buildSectionHeader('RESIDENTIAL ADDRESS'),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 CustomTextFormField(
                   controller: _addressController,
                   hintText: 'Street Address',
                 ),
 
-                // --- Contact Details Section ---
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 buildSectionHeader('CONTACT DETAILS'),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 CustomTextFormField(
                   controller: _contactController,
                   hintText: 'Contact Number',
                   keyboardType: TextInputType.phone,
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 CustomTextFormField(
                   controller: _emailController,
                   hintText: 'Email Address',
                   keyboardType: TextInputType.emailAddress,
                 ),
 
-                // --- Account Role Section ---
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 buildSectionHeader('ACCOUNT ROLE'),
-                SizedBox(height: 16),
-                _buildRoleDropdown(), // Role dropdown
+                const SizedBox(height: 16),
+                _buildRoleDropdown(),
 
-                // --- Submit Button ---
-                SizedBox(height: 32),
+                const SizedBox(height: 32),
                 ElevatedButton(
-                  onPressed: _isLoading ? null : () {
-                    if (_formKey.currentState!.validate()) {
-                      // Form is valid, proceed with submission
-                      print('Form is valid!');
-                      print('First Name: ${_firstNameController.text}');
-                      print('Role: $_selectedRole');
-
-                      createAccount();
-                    }
-                  },
+                  onPressed: _isLoading ? null : _handleSubmit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF1C3353), // Your app's theme color
-                    minimumSize: Size(double.infinity, 50), // Full width
+                    backgroundColor: AppColors.primary,
+                    minimumSize: const Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: _isLoading
-                  ? const CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  )
-                  : Text(
-                    'Create Account',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                      ? const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        )
+                      : Text(
+                          isEditMode ? 'Update Account' : 'Create Account',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -173,17 +187,15 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
     );
   }
 
-  // Reusable widget for the Date of Birth field
   Widget _buildDatePicker() {
     return TextFormField(
       controller: _dobController,
-      readOnly: true, // Makes the field non-editable
+      readOnly: true,
       decoration: buildInputDecoration(
         'Date of Birth',
-        suffixIcon: Icon(Icons.calendar_month_outlined),
+        suffixIcon: const Icon(Icons.calendar_month_outlined),
       ),
       onTap: () async {
-        // Show the date picker when tapped
         DateTime? pickedDate = await showDatePicker(
           context: context,
           initialDate: DateTime.now(),
@@ -192,7 +204,6 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
         );
 
         if (pickedDate != null) {
-          // Format the date and set it in the controller
           String formattedDate = DateFormat('MM/dd/yyyy').format(pickedDate);
           setState(() {
             _dobController.text = formattedDate;
@@ -208,16 +219,12 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
     );
   }
 
-  // Reusable widget for the Role dropdown
   Widget _buildRoleDropdown() {
     return DropdownButtonFormField<String>(
       value: _selectedRole,
       decoration: buildInputDecoration('Role'),
       items: _roles.map((String role) {
-        return DropdownMenuItem<String>(
-          value: role,
-          child: Text(role),
-        );
+        return DropdownMenuItem<String>(value: role, child: Text(role));
       }).toList(),
       onChanged: (String? newValue) {
         setState(() {
@@ -233,13 +240,21 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
     );
   }
 
-  Future<void> createAccount() async{
-    setState(() {
-      _isLoading = true;
-    });
+  void _handleSubmit() {
+    if (_formKey.currentState!.validate()) {
+      if (isEditMode) {
+        _updateAccount();
+      } else {
+        _createAccount();
+      }
+    }
+  }
+
+  Future<void> _createAccount() async {
+    setState(() => _isLoading = true);
 
     final url = Uri.parse("http://localhost:3000/api/accounts");
-    
+
     final Map<String, dynamic> payload = {
       'firstname': _firstNameController.text,
       'middlename': _middleNameController.text,
@@ -250,44 +265,81 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
       'contact': _contactController.text,
       'email': _emailController.text,
       'role': _selectedRole,
-      'action': 'create-users'
+      'action': 'create-users',
     };
 
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type' : 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
-      
-      if(!mounted) return;
 
-      final data = jsonDecode(response.body);
-      if(response.statusCode == 200) {
-        print("Response: ${data}");
+      if (!mounted) return;
 
-
+      if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Account created successfully!")),
+          const SnackBar(content: Text("Account created successfully!")),
         );
-
-        Navigator.of(context).pop();
-      }else{
+        Navigator.of(context).pop(true);
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Server error: ${response.statusCode}")),
         );
-        print("Error Response: ${data['error']}");
       }
     } catch (e) {
-      print("Error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Network Error!"))
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Network Error!")));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updateAccount() async {
+    setState(() => _isLoading = true);
+
+    final url = Uri.parse("http://localhost:3000/api/accounts");
+
+    final Map<String, dynamic> payload = {
+      'user_id': widget.user!.userId,
+      'firstname': _firstNameController.text,
+      'middlename': _middleNameController.text,
+      'lastname': _lastNameController.text,
+      'suffix': _suffixController.text,
+      'dob': _dobController.text,
+      'address': _addressController.text,
+      'contact': _contactController.text,
+      'email': _emailController.text,
+      'role': _selectedRole,
+      'action': 'update-user',
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Account updated successfully!")),
+        );
+        Navigator.of(context).pop(true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Server error: ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Network Error!")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 }
-

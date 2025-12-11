@@ -4,13 +4,12 @@ import 'package:interskwela/models/classes.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'package:interskwela/themes/app_theme.dart';
+
 class PeopleTab extends StatefulWidget {
   final Classes specificClass;
 
-  const PeopleTab({
-    required this.specificClass,
-    super.key
-  });
+  const PeopleTab({required this.specificClass, super.key});
 
   @override
   State<PeopleTab> createState() => _PeopleTabState();
@@ -26,27 +25,26 @@ class _PeopleTabState extends State<PeopleTab> {
     _students = _getStudents();
     _teacher = _getTeacher();
   }
-  
 
   Future<User?> _getTeacher() async {
     const String url = 'http://localhost:3000/api/classes';
 
     var payload = {
-      'class_id' : widget.specificClass.classId,
-      'action' : 'get-teacher'
+      'class_id': widget.specificClass.classId,
+      'action': 'get-teacher',
     };
 
     try {
       final response = await http.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload)
+        body: jsonEncode(payload),
       );
 
-      if(response.statusCode == 200) {
+      if (response.statusCode == 200) {
         final dynamic jsonResponse = json.decode(response.body);
         List<dynamic> data;
-        
+
         if (jsonResponse is List) {
           data = jsonResponse;
         } else if (jsonResponse is Map<String, dynamic>) {
@@ -56,10 +54,10 @@ class _PeopleTabState extends State<PeopleTab> {
         }
 
         List<User> teachers = data.map((json) => User.fromJson(json)).toList();
-        if(teachers.isNotEmpty){
+        if (teachers.isNotEmpty) {
           return teachers.first;
         }
-      } 
+      }
       return null;
     } catch (e) {
       print('Error fetching students: $e');
@@ -71,21 +69,21 @@ class _PeopleTabState extends State<PeopleTab> {
     const String url = 'http://localhost:3000/api/classes';
 
     var payload = {
-      'class_id' : widget.specificClass.classId,
-      'action' : 'get-students'
+      'class_id': widget.specificClass.classId,
+      'action': 'get-students',
     };
 
     try {
       final response = await http.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload)
+        body: jsonEncode(payload),
       );
 
-      if(response.statusCode == 200) {
+      if (response.statusCode == 200) {
         final dynamic jsonResponse = json.decode(response.body);
         List<dynamic> data;
-        
+
         if (jsonResponse is List) {
           data = jsonResponse;
         } else if (jsonResponse is Map<String, dynamic>) {
@@ -94,7 +92,7 @@ class _PeopleTabState extends State<PeopleTab> {
           data = [];
         }
         return data.map((json) => User.fromJson(json)).toList();
-      } 
+      }
       return [];
     } catch (e) {
       print('Error fetching students: $e');
@@ -104,9 +102,9 @@ class _PeopleTabState extends State<PeopleTab> {
 
   // --- SELECTION STATE ---
   String _actionsValue = 'Actions';
-  
+
   // CHANGED: Storing UserIDs is safer than List Indices
-  final Set<int> _selectedUserIds = {}; 
+  final Set<int> _selectedUserIds = {};
   bool _isAllStudentsSelected = false;
 
   void _onSelectAllStudents(bool? selected, List<User> allStudents) {
@@ -140,14 +138,17 @@ class _PeopleTabState extends State<PeopleTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // --- Teachers Section ---
-          _buildSectionHeader(
-            title: 'Teachers',
-            onAdd: () {
-              print('Invite teacher');
-            },
+          const Text(
+            'Teachers',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+              letterSpacing: -0.3,
+            ),
           ),
           const Divider(height: 24),
-          
+
           // Display Teacher (Using the User model)
           // _buildUserTile(
           //   user: _teacher,
@@ -166,8 +167,12 @@ class _PeopleTabState extends State<PeopleTab> {
               } else if (!snapshot.hasData || snapshot.data == null) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: Text("No teacher assigned to this class.", 
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)
+                  child: Text(
+                    "No teacher assigned to this class.",
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey,
+                    ),
                   ),
                 );
               }
@@ -178,7 +183,7 @@ class _PeopleTabState extends State<PeopleTab> {
                 user: teacherData, // Now passing a real User object
                 showCheckbox: false,
               );
-            }
+            },
           ),
 
           const SizedBox(height: 40),
@@ -192,21 +197,22 @@ class _PeopleTabState extends State<PeopleTab> {
               } else if (snapshot.hasError) {
                 return Text("Error: ${snapshot.error}");
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return _buildSectionHeader(title: 'Students (0)', onAdd: (){});
+                return _buildSectionHeader(title: 'Students (0)', onAdd: () {});
               }
 
               final students = snapshot.data!;
 
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionHeader(
-                    title: 'Students',
-                    trailing: Text(
-                      '${students.length} Student${students.length == 1 ? '' : 's'}',
+                  const Text(
+                    'Students',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                      letterSpacing: -0.3,
                     ),
-                    onAdd: () {
-                      print('Invite student');
-                    },
                   ),
                   const Divider(height: 24),
 
@@ -224,14 +230,18 @@ class _PeopleTabState extends State<PeopleTab> {
                         user: student,
                         showCheckbox: true,
                         // Check if this specific UserID is in our set
-                        isSelected: _selectedUserIds.contains(student.userId), 
-                        onSelected: (selected) => _onSelectStudent(student.userId, selected, students.length),
+                        isSelected: _selectedUserIds.contains(student.userId),
+                        onSelected: (selected) => _onSelectStudent(
+                          student.userId,
+                          selected,
+                          students.length,
+                        ),
                       );
                     },
                   ),
                 ],
               );
-            }
+            },
           ),
         ],
       ),
@@ -256,10 +266,7 @@ class _PeopleTabState extends State<PeopleTab> {
         ),
         Row(
           children: [
-            if (trailing != null) ...[
-              trailing,
-              const SizedBox(width: 16),
-            ],
+            if (trailing != null) ...[trailing, const SizedBox(width: 16)],
             IconButton(
               icon: const Icon(Icons.person_add_alt_1_outlined),
               tooltip: 'Invite ${title.toLowerCase()}',
@@ -291,14 +298,16 @@ class _PeopleTabState extends State<PeopleTab> {
               child: DropdownButton<String>(
                 value: _actionsValue,
                 items: ['Actions', 'Email', 'Remove']
-                    .map((value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(value),
-                        ))
+                    .map(
+                      (value) =>
+                          DropdownMenuItem(value: value, child: Text(value)),
+                    )
                     .toList(),
                 onChanged: (value) {
                   if (value != null && value != 'Actions') {
-                    print('Action: $value on ${_selectedUserIds.length} students');
+                    print(
+                      'Action: $value on ${_selectedUserIds.length} students',
+                    );
                     setState(() => _actionsValue = 'Actions');
                   } else {
                     setState(() => _actionsValue = value ?? 'Actions');
@@ -327,14 +336,13 @@ class _PeopleTabState extends State<PeopleTab> {
     ValueChanged<bool?>? onSelected,
   }) {
     // Helper to get initials (e.g., Mark Marfil -> M)
-    String initial = user.firstname.isNotEmpty ? user.firstname[0].toUpperCase() : '?';
+    String initial = user.firstname.isNotEmpty
+        ? user.firstname[0].toUpperCase()
+        : '?';
 
     return ListTile(
       leading: showCheckbox
-          ? Checkbox(
-              value: isSelected,
-              onChanged: onSelected,
-            )
+          ? Checkbox(value: isSelected, onChanged: onSelected)
           : null,
       title: Row(
         children: [
@@ -343,8 +351,11 @@ class _PeopleTabState extends State<PeopleTab> {
             backgroundColor: Colors.blue.shade100,
             radius: 20,
             child: Text(
-              initial, 
-              style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold)
+              initial,
+              style: TextStyle(
+                color: Colors.blue.shade900,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 16),

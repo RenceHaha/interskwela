@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:interskwela/models/criteria.dart';
 import 'package:interskwela/models/topic.dart';
-import 'package:interskwela/models/rubric.dart'; // New import
+import 'package:interskwela/models/rubric.dart';
 import 'package:interskwela/teacher/screens/class_tab/class_stream_tab.dart';
 import 'package:interskwela/teacher/screens/classworks/chat_bot_screen.dart';
 import 'package:interskwela/themes/app_theme.dart';
@@ -9,7 +9,7 @@ import 'package:interskwela/widgets/announcement/attachment_file.dart';
 import 'package:interskwela/widgets/dropdowns/dropdown_classes.dart';
 import 'package:interskwela/widgets/dropdowns/dropdown_students.dart';
 import 'package:interskwela/widgets/dropdowns/dropdown_topic.dart';
-import 'package:interskwela/widgets/dropdowns/dropdown_rubric.dart'; // New import
+import 'package:interskwela/widgets/dropdowns/dropdown_rubric.dart';
 import 'package:interskwela/widgets/forms.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:interskwela/models/classes.dart';
@@ -52,11 +52,9 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
   Topic? _selectedTopic;
   List<PlatformFile> _selectedFiles = [];
 
-  // Rubric State
-  List<Rubric> _availableRubrics = []; // List of rubrics from DB/Local
+  List<Rubric> _availableRubrics = [];
   Rubric? _selectedRubric;
 
-  // Chat bot messages - stored here for persistence across chat screen opens
   List<ChatMessage> _chatMessages = [];
 
   @override
@@ -94,13 +92,6 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        // Since get-rubrics returns shallow data, we might need to fetch details
-        // for the SELECTED one, but for the dropdown list, basic info is fine.
-        // If your API returns criteria in the list, great.
-        // If not, we can fetch full rubric when selected.
-
-        // For now assuming get-rubrics returns basic list.
-        // We will update this list dynamically.
         if (mounted) {
           setState(() {
             _availableRubrics = data
@@ -114,7 +105,6 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
     }
   }
 
-  // ... [Keep existing _fetchStudents, _fetchTopics, _fetchClasses, _pickFiles, _removeFile, _handleCreateTopic] ...
   Future<void> _fetchStudents() async {
     try {
       final response = await http.post(
@@ -251,8 +241,6 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
             const SnackBar(content: Text("Topic created and selected")),
           );
         }
-      } else {
-        print("Error creating topic: ${response.body}");
       }
     } catch (e) {
       print("Error creating topic: $e");
@@ -300,7 +288,6 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
 
     try {
       List<Map<String, String>> attachments = [];
-
       final safeFiles = List<PlatformFile>.from(files);
 
       for (var file in safeFiles) {
@@ -335,11 +322,6 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
         payload['classID'] = classID;
       }
 
-      print("payload: $payload");
-      print("category: ${payload['category']}");
-      print("class_ids: ${payload['class_ids']}");
-      print("student_ids: ${payload['stident_ids']}");
-
       final response = await http.post(
         Uri.parse('http://localhost:3000/api/classworks'),
         headers: {'Content-Type': 'application/json'},
@@ -351,17 +333,14 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Class work added successfully!")),
           );
-
           Navigator.pop(context);
         }
       } else {
-        final data = jsonDecode(response.body);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("Server error: ${response.statusCode}")),
           );
         }
-        print("Error Response: ${data['error']}");
       }
     } catch (e) {
       print("Error creating assignment: $e");
@@ -401,19 +380,55 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
     }
   }
 
+  IconData _getTypeIcon() {
+    switch (widget.creationMode.toLowerCase()) {
+      case 'quiz':
+        return Icons.quiz_outlined;
+      case 'question':
+        return Icons.help_outline_rounded;
+      case 'material':
+        return Icons.menu_book_outlined;
+      default:
+        return Icons.assignment_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Row(
           children: [
-            const Icon(Icons.assignment),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(_getTypeIcon(), color: AppColors.primary, size: 20),
+            ),
             const SizedBox(width: 12),
             Text(
               'Create ${widget.creationMode[0].toUpperCase()}${widget.creationMode.substring(1)}',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const Spacer(),
-            ElevatedButton(
+          ],
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: ElevatedButton(
               onPressed: () => _handleCreateAssignment(
                 _titleController.text,
                 _instructionController.text,
@@ -427,29 +442,34 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
                 widget.creationMode,
                 files: _selectedFiles,
               ),
-              style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.all(AppColors.primary),
-                foregroundColor: WidgetStateProperty.all(
-                  AppColors.textOnPrimary,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text('Assign'),
+              child: const Text(
+                'Assign',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isDesktop = constraints.maxWidth > 800;
 
           if (_isLoading) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(),
-              ),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: isDesktop
@@ -458,10 +478,7 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
                     children: [
                       Expanded(child: _buildAssignmentForm()),
                       const SizedBox(width: 24),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 300),
-                        child: _buildSidePanel(),
-                      ),
+                      SizedBox(width: 320, child: _buildSidePanel()),
                     ],
                   )
                 : Column(
@@ -483,13 +500,11 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
               MaterialPageRoute(
                 builder: (context) => ChatBotScreen(
                   creationMode: widget.creationMode,
-                  messages: _chatMessages, // Pass existing messages
+                  messages: _chatMessages,
                   onMessagesChanged: (messages) {
-                    // Store updated messages for persistence
                     _chatMessages = messages;
                   },
                   onAssignmentGenerated: (assignment) {
-                    // Apply content to form - chat stays open
                     setState(() {
                       _titleController.text = assignment.title;
                       _instructionController.text = assignment.instruction;
@@ -500,102 +515,231 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
             );
           }
         },
+        backgroundColor: AppColors.primary,
         tooltip: 'AI Assistant',
-        child: const Icon(Icons.auto_awesome),
+        child: const Icon(Icons.auto_awesome, color: Colors.white),
       ),
     );
   }
 
   Widget _buildAssignmentForm() {
-    return Form(
-      key: _formKey,
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader('Assignment Details', Icons.edit_note_outlined),
+            const SizedBox(height: 20),
+
+            // Title Field
+            _buildInputLabel('Title'),
+            const SizedBox(height: 8),
+            _buildModernTextField(
+              controller: _titleController,
+              hintText: 'Enter assignment title',
+            ),
+            const SizedBox(height: 20),
+
+            // Instructions Field
+            _buildInputLabel('Instructions'),
+            const SizedBox(height: 8),
+            _buildModernTextField(
+              controller: _instructionController,
+              hintText: 'Enter instructions (Press Enter for new lines)',
+              minLines: 6,
+              maxLines: null,
+            ),
+            const SizedBox(height: 24),
+
+            // Attachments Section
+            _buildAttachmentsSection(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.primary, size: 20),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInputLabel(String label) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: AppColors.textSecondary,
+      ),
+    );
+  }
+
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String hintText,
+    int minLines = 1,
+    int? maxLines = 1,
+    bool readOnly = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      minLines: minLines,
+      maxLines: maxLines,
+      readOnly: readOnly,
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        filled: true,
+        fillColor: AppColors.surfaceDim,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primary),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+      ),
+      style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+    );
+  }
+
+  Widget _buildAttachmentsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDim,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          buildSectionHeader('ASSIGNMENT DETAILS'),
-          const SizedBox(height: 16),
-          CustomTextFormField(controller: _titleController, hintText: 'Title'),
-          const SizedBox(height: 16),
-          CustomTextFormField(
-            controller: _instructionController,
-            minLines: 4,
-            maxLines: null, // Allow unlimited lines - Enter creates new lines
-            hintText: 'Instructions (Press Enter for new lines)',
-          ),
-          const SizedBox(height: 16),
-          Card(
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Attachments'),
-                      Wrap(
-                        spacing: 12,
-                        children: [
-                          IconButton.outlined(
-                            onPressed: _pickFiles,
-                            icon: const Icon(Icons.add),
-                            iconSize: 16,
-                            padding: const EdgeInsets.all(8),
-                            tooltip: 'Upload Files',
-                          ),
-                          IconButton.outlined(
-                            onPressed: () {},
-                            icon: const Icon(Icons.link),
-                            iconSize: 16,
-                            padding: const EdgeInsets.all(8),
-                            tooltip: 'Add Link',
-                          ),
-                        ],
-                      ),
-                    ],
+                  Icon(
+                    Icons.attach_file,
+                    size: 18,
+                    color: AppColors.textSecondary,
                   ),
-                  const SizedBox(height: 12),
-                  if (_selectedFiles.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _selectedFiles
-                          .map(
-                            (file) => AttachmentFile(
-                              fileName: file.name,
-                              onDelete: () => _removeFile(file),
-                            ),
-                          )
-                          .toList(),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Attachments',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
                     ),
+                  ),
                 ],
               ),
-            ),
+              Row(
+                children: [
+                  _buildSmallButton(
+                    icon: Icons.upload_file,
+                    tooltip: 'Upload Files',
+                    onPressed: _pickFiles,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildSmallButton(
+                    icon: Icons.link,
+                    tooltip: 'Add Link',
+                    onPressed: () {},
+                  ),
+                ],
+              ),
+            ],
           ),
+          if (_selectedFiles.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _selectedFiles
+                  .map(
+                    (file) => AttachmentFile(
+                      fileName: file.name,
+                      onDelete: () => _removeFile(file),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildSmallButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Tooltip(
+            message: tooltip,
+            child: Icon(icon, size: 18, color: AppColors.textSecondary),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildSidePanel() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildSectionHeader('Assignment Settings', Icons.settings_outlined),
+          const SizedBox(height: 20),
+
           DropdownClasses(
             classes: _availableClasses,
             selectedClassIds: _selectedClassIds,
@@ -606,7 +750,8 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
               });
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
           DropdownStudents(
             students: _availableStudents,
             selectedStudentIds: _selectedStudentIds,
@@ -616,22 +761,24 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
               });
             },
           ),
-          const SizedBox(height: 24),
-          buildSectionHeader("POINTS"),
+          const SizedBox(height: 20),
+
+          _buildInputLabel('POINTS'),
           const SizedBox(height: 8),
-          CustomTextFormField(
+          _buildModernTextField(
             controller: _pointsController,
-            hintText: "0",
+            hintText: '0',
             readOnly: _selectedRubric != null,
           ),
-          const SizedBox(height: 24),
-          buildSectionHeader("DUE"),
+          const SizedBox(height: 20),
+
+          _buildInputLabel('DUE DATE'),
           const SizedBox(height: 8),
           CustomDatePickerFormField(
             controller: _dueDateController,
-            hintText: "No due date",
+            hintText: 'No due date',
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           DropdownTopic(
             topics: _topicList,
@@ -643,9 +790,8 @@ class _ClassworkFormScreenState extends State<ClassworkFormScreen> {
             },
             onAddTopic: _handleCreateTopic,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // == NEW DROPDOWN RUBRIC ==
           DropdownRubric(
             rubrics: _availableRubrics,
             selectedRubric: _selectedRubric,

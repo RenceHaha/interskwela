@@ -5,40 +5,56 @@ class TopicHeader extends StatelessWidget {
   final String topicName;
   final VoidCallback? onMorePressed;
 
-  const TopicHeader({
-    required this.topicName,
-    this.onMorePressed,
-    super.key,
-  });
+  const TopicHeader({required this.topicName, this.onMorePressed, super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Padding(
+      padding: const EdgeInsets.only(top: 20, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                topicName,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.primary, 
+              Expanded(
+                child: Text(
+                  topicName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.more_vert, color: Colors.grey),
-                onPressed: onMorePressed ?? () {},
-              ),
+              if (onMorePressed != null)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onMorePressed,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.more_horiz,
+                        color: AppColors.textSecondary,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
-        ),
-        const Divider(height: 1, thickness: 1, color: AppColors.primary),
-        const SizedBox(height: 16),
-      ],
+          const SizedBox(height: 8),
+          Container(
+            height: 2,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

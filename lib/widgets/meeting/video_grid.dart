@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:interskwela/models/classes.dart';
 import 'meeting_theme.dart';
 import 'video_tile_card.dart';
 
@@ -73,10 +74,12 @@ class VideoGrid extends StatelessWidget {
 class MeetingWelcomeScreen extends StatelessWidget {
   final String classCode;
   final String message;
+  final Classes selectedClass;
 
   const MeetingWelcomeScreen({
     required this.classCode,
     required this.message,
+    required this.selectedClass,
     super.key,
   });
 
@@ -115,7 +118,7 @@ class MeetingWelcomeScreen extends StatelessWidget {
 
             // Welcome text
             Text(
-              'Class Session: $classCode',
+              '${selectedClass.sectionName} - ${selectedClass.subjectName}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 24,

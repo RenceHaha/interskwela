@@ -11,25 +11,18 @@ class InstructionsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Determine icon based on type
-    IconData iconData = Icons.assignment;
-    if (classwork.type == 'question') iconData = Icons.help_outline;
-    if (classwork.type == 'quiz') iconData = Icons.assignment_turned_in;
+    IconData iconData = Icons.assignment_outlined;
+    if (classwork.type == 'question') iconData = Icons.help_outline_rounded;
+    if (classwork.type == 'quiz') iconData = Icons.quiz_outlined;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(24),
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -40,11 +33,11 @@ class InstructionsTab extends StatelessWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.primary,
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(iconData, color: Colors.white, size: 24),
+                  child: Icon(iconData, color: Colors.white, size: 22),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -52,68 +45,69 @@ class InstructionsTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            classwork.title,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w400,
+                          Expanded(
+                            child: Text(
+                              classwork.title,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.5,
+                              ),
                             ),
                           ),
-                          IconButton(
-                            onPressed: () {},
-                            icon: const Icon(Icons.more_vert),
-                            color: Colors.grey,
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {},
+                              borderRadius: BorderRadius.circular(20),
+                              child: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: Icon(
+                                  Icons.more_horiz,
+                                  color: AppColors.textSecondary,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      RichText(
-                        text: TextSpan(
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                          ),
-                          children: [
-                            TextSpan(
-                              text:
-                                  classwork.author_firstname +
-                                  " " +
-                                  classwork
-                                      .author_lastname, // Replace with author name if available
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            TextSpan(
-                              text:
-                                  " • ${_formatDateFull(classwork.dateUpdated)}",
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "${_formatPoints(classwork.points)} points",
+                            "${classwork.author_firstname} ${classwork.author_lastname}",
                             style: const TextStyle(
                               fontWeight: FontWeight.w500,
                               fontSize: 13,
+                              color: AppColors.textPrimary,
                             ),
                           ),
-                          if (classwork.dueDate != null)
-                            Text(
-                              "Due ${_formatDateFull(classwork.dueDate!)}",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 13,
-                              ),
+                          Text(
+                            " • ${_formatDateFull(classwork.dateUpdated)}",
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
                             ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _buildInfoChip(
+                            Icons.star_outline,
+                            "${_formatPoints(classwork.points)} points",
+                          ),
+                          if (classwork.dueDate != null) ...[
+                            const SizedBox(width: 12),
+                            _buildInfoChip(
+                              Icons.schedule_outlined,
+                              "Due ${_formatDateFull(classwork.dueDate!)}",
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -121,9 +115,10 @@ class InstructionsTab extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 16),
+
+            const SizedBox(height: 20),
+            Divider(color: Colors.grey.shade200),
+            const SizedBox(height: 20),
 
             // --- Description ---
             if (classwork.instruction != null &&
@@ -132,66 +127,88 @@ class InstructionsTab extends StatelessWidget {
                 classwork.instruction!,
                 style: const TextStyle(
                   fontSize: 14,
-                  height: 1.5,
-                  color: Colors.black87,
+                  height: 1.6,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 24),
             ],
 
-            // --- Rubric Pill (Mock UI) ---
-            // Only show if there is actually a rubric connected (logic can be added)
+            // --- Rubric ---
             if (classwork.rubric_id != null) ...[
               RubricCard(classwork: classwork),
+              const SizedBox(height: 24),
             ],
 
-            const SizedBox(height: 32),
-            const Divider(),
-            const SizedBox(height: 16),
+            Divider(color: Colors.grey.shade200),
+            const SizedBox(height: 20),
 
             // --- Class Comments ---
             Row(
-              children: const [
-                Icon(Icons.people_outline, size: 20, color: Colors.black54),
-                SizedBox(width: 8),
-                Text(
+              children: [
+                Icon(
+                  Icons.forum_outlined,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 10),
+                const Text(
                   "Class comments",
-                  style: TextStyle(fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                const CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.grey,
-                  child: Icon(Icons.person, color: Colors.white, size: 20),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
+                      color: AppColors.surfaceDim,
                       borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.grey.shade200),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: TextField(
                             decoration: InputDecoration(
                               hintText: "Add class comment...",
+                              hintStyle: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
                               border: InputBorder.none,
-                              hintStyle: TextStyle(fontSize: 13),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(
-                            Icons.send,
+                          icon: Icon(
+                            Icons.send_rounded,
                             size: 18,
-                            color: Colors.grey,
+                            color: AppColors.textSecondary,
                           ),
                           onPressed: () {},
                         ),
@@ -203,6 +220,31 @@ class InstructionsTab extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDim,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

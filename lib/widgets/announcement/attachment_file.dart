@@ -1,32 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:interskwela/themes/app_theme.dart';
 
-class AttachmentFile extends StatefulWidget {
-
+class AttachmentFile extends StatelessWidget {
   final String fileName;
-  final Function() onDelete; 
+  final Function() onDelete;
 
   const AttachmentFile({
     required this.fileName,
     required this.onDelete,
-    super.key
+    super.key,
   });
 
   @override
-  State<AttachmentFile> createState() => _AttachmentFileState();
-}
-
-class _AttachmentFileState extends State<AttachmentFile> {
-  @override
   Widget build(BuildContext context) {
-    return Chip(
-      label: Text(
-        widget.fileName,
-        style: const TextStyle(fontSize: 12),
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 200),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      deleteIcon: const Icon(Icons.close, size: 16),
-      onDeleted: widget.onDelete,
-      backgroundColor: Colors.grey[100],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Icon(
+              Icons.insert_drive_file_outlined,
+              size: 16,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              fileName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 16),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            splashRadius: 16,
+            color: Colors.grey[400],
+            onPressed: () => onDelete(),
+          ),
+        ],
+      ),
     );
   }
 }

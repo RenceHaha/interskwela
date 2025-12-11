@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:interskwela/models/classwork.dart';
 import 'package:interskwela/themes/app_theme.dart';
 import 'package:interskwela/widgets/dropdowns/dropdown_single_select.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class StudentWorkTab extends StatefulWidget {
   final Classwork classwork;
@@ -18,16 +19,16 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
   bool _isLoading = true;
   List<dynamic> _students = [];
   Map<String, int> _stats = {'handed_in': 0, 'assigned': 0, 'marked': 0};
-  
-  // Selection & Viewing State
+
   final Set<int> _selectedUserIds = {};
   bool _allSelected = false;
-  int? _viewingUserId; // The student currently being viewed on the right side
+  int? _viewingUserId;
 
-  // Max Points State
   late TextEditingController _maxPointsController;
 
-  // Sorting State
+  // Grade controllers for each student
+  final Map<int, TextEditingController> _gradeControllers = {};
+
   int? _sortOrderId = 1;
   final List<DropdownOption> _sortOptions = const [
     DropdownOption(id: 1, label: "Sort by status"),
@@ -37,13 +38,20 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
   @override
   void initState() {
     super.initState();
-    _maxPointsController = TextEditingController(text: _formatPoints(widget.classwork.points));
+    _maxPointsController = TextEditingController(
+      text: _formatPoints(widget.classwork.points),
+    );
     _fetchStudentWork();
   }
 
   @override
   void dispose() {
     _maxPointsController.dispose();
+    // Dispose all grade controllers
+    for (var controller in _gradeControllers.values) {
+      controller.dispose();
+    }
+    _gradeControllers.clear();
     super.dispose();
   }
 
@@ -65,6 +73,17 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
           setState(() {
             _students = data['students'] ?? [];
             _stats = Map<String, int>.from(data['stats'] ?? {});
+
+            // Initialize grade controllers for each student
+            for (var student in _students) {
+              final int userId = student['user_id'];
+              if (!_gradeControllers.containsKey(userId)) {
+                _gradeControllers[userId] = TextEditingController(
+                  text: student['score']?.toString() ?? '',
+                );
+              }
+            }
+
             _isLoading = false;
             _applySort();
           });
@@ -77,41 +96,49 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
     }
   }
 
-  /// Saves changes for selected students (Submits grades & marks as returned)
   Future<void> _returnSelectedSubmissions() async {
     if (_selectedUserIds.isEmpty) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // Create a list of futures to return all selected submissions
-      // (In a production app, a single bulk-update API endpoint is preferred)
       final futures = _selectedUserIds.map((userId) {
-        // Find the student object to get the latest 'score' from local state
-        final student = _students.firstWhere((s) => s['user_id'] == userId);
-        final grade = student['score']; 
+        // Get grade from the controller, not from student['score']
+        final controller = _gradeControllers[userId];
+        final gradeText = controller?.text ?? '';
+        final grade = double.tryParse(gradeText);
+
+        print(
+          'DEBUG: userId=$userId, controller exists=${controller != null}, text="$gradeText", grade=$grade',
+        );
+        print('DEBUG: All controllers: ${_gradeControllers.keys.toList()}');
+
+        final payload = {
+          'action': 'return-grade',
+          'class_work_id': widget.classwork.id,
+          'user_id': userId,
+          'grade': grade,
+        };
+
+        print(payload);
 
         return http.post(
           Uri.parse('http://localhost:3000/api/classworks'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'action': 'return-grade',
-            'class_work_id': widget.classwork.id,
-            'user_id': userId,
-            'grade': grade, 
-          }),
+          body: jsonEncode(payload),
         );
       }).toList();
 
-      // Wait for all requests to complete
       await Future.wait(futures);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Returned ${_selectedUserIds.length} submission(s)")),
+          SnackBar(
+            content: Text("Returned ${_selectedUserIds.length} submission(s)"),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-        
-        // Clear selection and refresh data to show updated statuses
+
         setState(() {
           _selectedUserIds.clear();
           _allSelected = false;
@@ -119,10 +146,9 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
         _fetchStudentWork();
       }
     } catch (e) {
-      print("Error returning submissions: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text("Error returning submissions")),
+          const SnackBar(content: Text("Error returning submissions")),
         );
         setState(() => _isLoading = false);
       }
@@ -136,12 +162,15 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
           if (status == 'handed-in') return 0;
           if (status == 'assigned') return 1;
           if (status == 'missing') return 2;
-          return 3; 
+          return 3;
         }
+
         return priority(a['status']).compareTo(priority(b['status']));
       });
     } else if (_sortOrderId == 2) {
-      _students.sort((a, b) => a['name'].toString().compareTo(b['name'].toString()));
+      _students.sort(
+        (a, b) => a['name'].toString().compareTo(b['name'].toString()),
+      );
     }
   }
 
@@ -173,16 +202,6 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
     });
   }
 
-  Future<void> _updateGrade(int userId, String val) async {
-    // Updates the local state immediately so it's ready for 'Return'
-    final index = _students.indexWhere((s) => s['user_id'] == userId);
-    if (index != -1) {
-      setState(() {
-        _students[index]['score'] = double.tryParse(val);
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -195,49 +214,40 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
 
         return Column(
           children: [
-            // --- TOP ACTION BAR ---
             _buildTopActionBar(),
-
-            // --- MAIN CONTENT ---
             Expanded(
-              child: isDesktop 
+              child: isDesktop
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Left Side: Student List
                         Container(
-                          width: 350, 
+                          width: 360,
                           decoration: BoxDecoration(
-                            border: Border(right: BorderSide(color: Colors.grey.shade200)),
+                            border: Border(
+                              right: BorderSide(color: Colors.grey.shade200),
+                            ),
                           ),
                           child: _buildStudentList(),
                         ),
-                        // Right Side: Work Area (Summary or Individual)
                         Expanded(
-                          child: _viewingUserId == null 
-                            ? _buildSummaryView() 
-                            : _buildIndividualStudentView(),
+                          child: _viewingUserId == null
+                              ? _buildSummaryView()
+                              : _buildIndividualStudentView(),
                         ),
                       ],
                     )
                   : SingleChildScrollView(
                       child: Column(
                         children: [
-                           SizedBox(
-                             height: 500,
-                             child: _buildStudentList(),
-                           ),
-                           const Divider(thickness: 8),
-                           if (_viewingUserId != null)
-                              SizedBox(
-                                height: 500, 
-                                child: _buildIndividualStudentView()
-                              )
-                           else 
-                              SizedBox(
-                                height: 500,
-                                child: _buildSummaryView()
-                              ),
+                          SizedBox(height: 500, child: _buildStudentList()),
+                          Divider(thickness: 1, color: Colors.grey.shade200),
+                          if (_viewingUserId != null)
+                            SizedBox(
+                              height: 500,
+                              child: _buildIndividualStudentView(),
+                            )
+                          else
+                            SizedBox(height: 500, child: _buildSummaryView()),
                         ],
                       ),
                     ),
@@ -250,75 +260,52 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
 
   Widget _buildTopActionBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
+        color: AppColors.surface,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         children: [
-          // Return Button with Split Dropdown
-          Container(
-            decoration: BoxDecoration(
-              color: _selectedUserIds.isEmpty ? Colors.grey.shade300 : AppColors.primary,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    // Calls _returnSelectedSubmissions when clicked
-                    onTap: _selectedUserIds.isEmpty ? null : _returnSelectedSubmissions,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      child: Text(
-                        "Return",
-                        style: TextStyle(
-                          color: _selectedUserIds.isEmpty ? Colors.grey.shade600 : Colors.white,
-                          fontWeight: FontWeight.bold
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Container(width: 1, height: 24, color: Colors.white24),
-                PopupMenuButton<String>(
-                  icon: Icon(Icons.arrow_drop_down, color: _selectedUserIds.isEmpty ? Colors.grey.shade600 : Colors.white),
-                  enabled: _selectedUserIds.isNotEmpty,
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'return', child: Text("Return this submission")),
-                    const PopupMenuItem(value: 'return_multiple', child: Text("Return multiple submissions")),
-                  ],
-                  onSelected: (val) {
-                     // Can add logic here if specific dropdown action differs from main click
-                     if(val == 'return' || val == 'return_multiple') {
-                        _returnSelectedSubmissions();
-                     }
-                  },
-                ),
-              ],
+          // Return Button
+          ElevatedButton.icon(
+            onPressed: _selectedUserIds.isEmpty
+                ? null
+                : _returnSelectedSubmissions,
+            icon: const Icon(Icons.reply_rounded, size: 18),
+            label: const Text("Return"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade200,
+              disabledForegroundColor: Colors.grey.shade500,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           IconButton(
-            icon: const Icon(Icons.email_outlined),
+            icon: Icon(Icons.email_outlined, color: AppColors.textSecondary),
             onPressed: () {},
             tooltip: "Email students",
           ),
-          
           const Spacer(),
-          
-          // Editable Max Points
+
+          // Max Points
           Container(
-            width: 120,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(4),
+              color: AppColors.surfaceDim,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Row(
               children: [
-                Expanded(
+                SizedBox(
+                  width: 50,
                   child: TextField(
                     controller: _maxPointsController,
                     keyboardType: TextInputType.number,
@@ -326,16 +313,22 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       isDense: true,
+                      contentPadding: EdgeInsets.zero,
                     ),
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                    onSubmitted: (val) {
-                      // TODO: Add API call to update max points
-                      print("Updated max points to $val");
-                    },
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Text("points", style: TextStyle(fontSize: 14)),
+                Text(
+                  "points",
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -344,28 +337,36 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
     );
   }
 
-  // --- LEFT PANE: STUDENT LIST ---
   Widget _buildStudentList() {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: AppColors.surface),
           child: Column(
             children: [
               Row(
                 children: [
                   Checkbox(
-                    value: _allSelected, 
+                    value: _allSelected,
                     onChanged: _toggleSelectAll,
+                    activeColor: AppColors.primary,
                   ),
-                  const Icon(Icons.group_outlined, size: 20, color: Colors.grey),
-                  const SizedBox(width: 12),
-                  const Text("All students", style: TextStyle(fontWeight: FontWeight.w500)),
+                  Icon(
+                    Icons.group_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    "All students",
+                    style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
               SingleSelectDropdown(
-                label: "", 
+                label: "",
                 options: _sortOptions,
                 selectedValue: _sortOrderId,
                 onChanged: (val) {
@@ -378,12 +379,12 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
             ],
           ),
         ),
-        const Divider(height: 1),
-        
+        Divider(height: 1, color: Colors.grey.shade200),
         Expanded(
           child: ListView.separated(
             itemCount: _students.length,
-            separatorBuilder: (ctx, i) => const Divider(height: 1),
+            separatorBuilder: (ctx, i) =>
+                Divider(height: 1, color: Colors.grey.shade100),
             itemBuilder: (context, index) {
               final student = _students[index];
               final int userId = student['user_id'];
@@ -391,58 +392,101 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
               final bool isViewing = _viewingUserId == userId;
 
               return Material(
-                color: isViewing ? AppColors.primary.withOpacity(0.05) : Colors.transparent,
+                color: isViewing
+                    ? AppColors.primary.withOpacity(0.05)
+                    : AppColors.surface,
                 child: InkWell(
                   onTap: () => _selectStudentForView(userId),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         Checkbox(
-                          value: isSelected, 
+                          value: isSelected,
                           onChanged: (_) => _toggleStudentSelection(userId),
+                          activeColor: AppColors.primary,
                         ),
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: AppColors.primary,
-                          backgroundImage: student['avatar'] != null 
-                              ? NetworkImage("http://localhost:3000${student['avatar']}") 
+                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          backgroundImage: student['avatar'] != null
+                              ? NetworkImage(
+                                  "http://localhost:3000${student['avatar']}",
+                                )
                               : null,
-                          child: student['avatar'] == null 
-                              ? Text(student['name'][0], style: const TextStyle(color: Colors.white, fontSize: 12)) 
+                          child: student['avatar'] == null
+                              ? Text(
+                                  student['name'][0],
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
                               : null,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(student['name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                            ],
+                          child: Text(
+                            student['name'],
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                        // Editable Grade Input
                         SizedBox(
-                          width: 60,
+                          width: 50,
                           child: TextFormField(
-                            key: ValueKey(userId), // Helps maintain state when scrolling
-                            initialValue: student['score']?.toString() ?? "",
+                            key: ValueKey('grade_$userId'),
+                            controller: _gradeControllers[userId],
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              hintText: "__",
+                            textAlign: TextAlign.center,
+                            decoration: InputDecoration(
+                              hintText: "—",
                               isDense: true,
-                              contentPadding: EdgeInsets.symmetric(vertical: 8),
-                              border: UnderlineInputBorder(),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: const BorderSide(
+                                  color: AppColors.primary,
+                                ),
+                              ),
                             ),
                             style: TextStyle(
-                              color: student['status'] == 'missing' ? Colors.red : Colors.black87,
-                              fontWeight: FontWeight.bold
+                              color: student['status'] == 'missing'
+                                  ? AppColors.error
+                                  : AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
                             ),
-                            onChanged: (val) => _updateGrade(userId, val),
                           ),
                         ),
-                        const Text("/100", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
+                        Text(
+                          "/100",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -455,20 +499,31 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
     );
   }
 
-  // --- RIGHT PANE: INDIVIDUAL STUDENT VIEW ---
   Widget _buildIndividualStudentView() {
-    final student = _students.firstWhere((s) => s['user_id'] == _viewingUserId, orElse: () => null);
+    final student = _students.firstWhere(
+      (s) => s['user_id'] == _viewingUserId,
+      orElse: () => null,
+    );
     if (student == null) return const SizedBox.shrink();
 
     String statusText = "Assigned";
-    if (student['status'] == 'handed-in') statusText = "Handed in";
-    if (student['status'] == 'missing') statusText = "Missing";
-    if (student['status'] == 'returned') statusText = "Marked";
+    Color statusColor = AppColors.textSecondary;
+    if (student['status'] == 'handed-in') {
+      statusText = "Handed in";
+      statusColor = Colors.green;
+    }
+    if (student['status'] == 'missing') {
+      statusText = "Missing";
+      statusColor = AppColors.error;
+    }
+    if (student['status'] == 'returned') {
+      statusText = "Marked";
+      statusColor = AppColors.primary;
+    }
 
-    // Attachments
     List<dynamic> attachments = [];
     if (student['attachments'] != null && student['attachments'] is List) {
-       attachments = student['attachments'];
+      attachments = student['attachments'];
     }
 
     return Column(
@@ -479,6 +534,21 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Back button
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _viewingUserId = null;
+                    });
+                  },
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Back to Overview'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -488,73 +558,139 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
                       children: [
                         Text(
                           student['name'],
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(statusText, style: TextStyle(
-                              color: statusText == "Missing" ? Colors.red : Colors.black54,
-                              fontSize: 13
-                            )),
-                            if (student['status'] == 'handed-in')
-                               const Padding(
-                                 padding: EdgeInsets.only(left: 4.0),
-                                 child: Text("(See history)", style: TextStyle(decoration: TextDecoration.underline, fontSize: 13)),
-                               )
-                          ],
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                     if (student['score'] == null)
-                       const Text("No mark", style: TextStyle(color: Colors.grey, fontSize: 16))
+                      Text(
+                        "No mark",
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 24),
 
-                // Files / Work Area
+                // Files
                 if (attachments.isEmpty)
                   Container(
                     width: double.infinity,
-                    height: 200,
-                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(40),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade200)
+                      color: AppColors.surfaceDim,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
                     ),
-                    child: const Text("No attachments submitted", style: TextStyle(color: Colors.grey)),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.folder_open_outlined,
+                          size: 40,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "No attachments submitted",
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
                   )
                 else
                   Wrap(
                     spacing: 16,
                     runSpacing: 16,
                     children: attachments.map<Widget>((att) {
-                      return Container(
-                        width: 200,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8)
-                        ),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                color: Colors.grey.shade100,
-                                child: const Center(child: Icon(Icons.insert_drive_file, size: 40, color: Colors.red)),
+                      final String? filePath = att['file_path'];
+                      return InkWell(
+                        onTap: () async {
+                          if (filePath != null && filePath.isNotEmpty) {
+                            // Build the full URL for the file
+                            final String fileUrl =
+                                'http://localhost:3000/$filePath';
+                            final Uri uri = Uri.parse(fileUrl);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } else {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Could not open file'),
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 180,
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            children: [
+                              Container(
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceDim,
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(10),
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.insert_drive_file_outlined,
+                                    size: 36,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
                               ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text(
-                                att['file_name'] ?? 'File',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12),
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Text(
+                                  att['file_name'] ?? 'File',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
-                            )
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     }).toList(),
@@ -563,41 +699,61 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
             ),
           ),
         ),
-        
-        // Private Comments Section
+
+        // Private Comments
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
+            color: AppColors.surface,
             border: Border(top: BorderSide(color: Colors.grey.shade200)),
           ),
           child: Row(
             children: [
-              const CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.grey,
-                child: Icon(Icons.person, color: Colors.white, size: 20),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: AppColors.surfaceDim,
                     borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.grey.shade200),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: TextField(
                           decoration: InputDecoration(
                             hintText: "Add private comment...",
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
                             border: InputBorder.none,
-                            hintStyle: TextStyle(fontSize: 13),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                           ),
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.send, size: 18, color: Colors.grey),
+                        icon: Icon(
+                          Icons.send_rounded,
+                          size: 18,
+                          color: AppColors.textSecondary,
+                        ),
                         onPressed: () {},
                       ),
                     ],
@@ -611,19 +767,23 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
     );
   }
 
-  // --- RIGHT PANE: SUMMARY VIEW (Grid) ---
   Widget _buildSummaryView() {
-    return Padding(
-      padding: const EdgeInsets.all(32.0),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             widget.classwork.title,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 24),
-          
+
+          // Stats Row
           Row(
             children: [
               _buildBigStat(_stats['handed_in'].toString(), "Handed in"),
@@ -633,19 +793,24 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
               _buildBigStat(_stats['marked'].toString(), "Marked"),
             ],
           ),
-          
+
           const SizedBox(height: 32),
-          Text("Student Attachments", style: TextStyle(color: Colors.grey.shade800)),
+          Text(
+            "Student Attachments",
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 16),
-          
-          Expanded(child: _buildAttachmentsGrid()),
+
+          _buildAttachmentsGrid(),
         ],
       ),
     );
   }
 
   Widget _buildAttachmentsGrid() {
-    // Collect all attachments for summary
     List<Map<String, dynamic>> allAttachments = [];
     for (var s in _students) {
       if (s['attachments'] != null) {
@@ -654,28 +819,30 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
             'student_name': s['name'],
             'student_avatar': s['avatar'],
             'file_name': att['file_name'],
-            'status': s['status']
+            'file_path': att['file_path'],
+            'status': s['status'],
           });
         }
       }
     }
 
     if (allAttachments.isEmpty) {
-      return Center(child: Text("No work submitted yet", style: TextStyle(color: Colors.grey.shade400)));
+      return Container(
+        padding: const EdgeInsets.all(40),
+        alignment: Alignment.center,
+        child: Text(
+          "No work submitted yet",
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
     }
 
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: allAttachments.length,
-      itemBuilder: (context, index) {
-        final item = allAttachments[index];
-        return _buildSubmissionCard(item);
-      },
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      children: allAttachments
+          .map((item) => _buildSubmissionCard(item))
+          .toList(),
     );
   }
 
@@ -683,15 +850,25 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(value, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w300)),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w400,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
       ],
     );
   }
 
   Widget _buildDivider() {
     return Container(
-      height: 40,
+      height: 36,
       width: 1,
       color: Colors.grey.shade300,
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -699,60 +876,117 @@ class _StudentWorkTabState extends State<StudentWorkTab> {
   }
 
   Widget _buildSubmissionCard(Map<String, dynamic> item) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                 CircleAvatar(
-                   radius: 12, 
-                   backgroundColor: Colors.blueGrey,
-                   backgroundImage: item['student_avatar'] != null 
-                      ? NetworkImage("http://localhost:3000${item['student_avatar']}")
-                      : null,
-                   child: item['student_avatar'] == null 
-                      ? Text(item['student_name'][0], style: const TextStyle(fontSize: 10, color: Colors.white)) 
-                      : null,
-                 ),
-                 const SizedBox(width: 8),
-                 Expanded(child: Text(item['student_name'], style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
-              ],
+    final String? filePath = item['file_path'];
+    return InkWell(
+      onTap: () async {
+        if (filePath != null && filePath.isNotEmpty) {
+          final String fileUrl = 'http://localhost:3000/$filePath';
+          final Uri uri = Uri.parse(fileUrl);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Could not open file')),
+              );
+            }
+          }
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 180,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    backgroundImage: item['student_avatar'] != null
+                        ? NetworkImage(
+                            "http://localhost:3000${item['student_avatar']}",
+                          )
+                        : null,
+                    child: item['student_avatar'] == null
+                        ? Text(
+                            item['student_name'][0],
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item['student_name'],
+                      style: const TextStyle(fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: Container(
-              color: Colors.white,
+            Container(
+              height: 80,
               width: double.infinity,
-              alignment: Alignment.center,
-              child: const Icon(Icons.insert_drive_file, size: 40, color: Colors.redAccent),
+              color: AppColors.surfaceDim,
+              child: const Center(
+                child: Icon(
+                  Icons.insert_drive_file_outlined,
+                  size: 32,
+                  color: AppColors.primary,
+                ),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item['file_name'], style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Text(item['status'].toString().toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              ],
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['file_name'],
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item['status']
+                        .toString()
+                        .replaceAll('-', ' ')
+                        .toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   String _formatPoints(double? points) {
     if (points == null) return "Ungraded";
-    return points.truncateToDouble() == points ? points.truncate().toString() : points.toString();
+    return points.truncateToDouble() == points
+        ? points.truncate().toString()
+        : points.toString();
   }
 }

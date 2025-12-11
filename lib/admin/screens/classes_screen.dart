@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:interskwela/admin/screens/class_screen.dart';
+import 'package:interskwela/teacher/screens/class_tab/class_work_tab.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/classes.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:developer';
 import 'package:interskwela/admin/screens/create_class_form_screen.dart';
 import 'package:interskwela/widgets/class/class_card.dart';
-
 
 class AdminClassesScreen extends StatefulWidget {
   const AdminClassesScreen({super.key});
@@ -17,11 +19,23 @@ class AdminClassesScreen extends StatefulWidget {
 class _AdminClassesScreenState extends State<AdminClassesScreen> {
   late Future<List<Classes>> _classes;
   String _message = '';
+  int? userId;
+  String? username;
 
   @override
   void initState() {
     super.initState();
     _classes = _fetchClasses();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userId = prefs.getInt('userId');
+      username =
+          "${prefs.getString('firstName')} ${prefs.getString('lastName')}";
+    });
   }
 
   Future<List<Classes>> _fetchClasses() async {
@@ -34,12 +48,10 @@ class _AdminClassesScreenState extends State<AdminClassesScreen> {
     try {
       final response = await http.get(
         Uri.parse(url),
-        headers: <String, String>{
-          'Content-Type': 'application/json'
-        }
+        headers: <String, String>{'Content-Type': 'application/json'},
       );
 
-      if(response.statusCode == 200) {
+      if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         return data.map((json) => Classes.fromJson(json)).toList();
       } else {
@@ -49,7 +61,6 @@ class _AdminClassesScreenState extends State<AdminClassesScreen> {
         });
         return []; // Return empty list on error
       }
-
     } catch (e) {
       setState(() {
         _message = 'An error occured: Could not connect to the server.';
@@ -73,13 +84,13 @@ class _AdminClassesScreenState extends State<AdminClassesScreen> {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          
+
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('No classes found.'));
           }
 
           final classesList = snapshot.data!;
-          
+
           // --- 1. Use GridView.builder instead of ListView.builder ---
           // Replace GridView.builder with this:
           return SingleChildScrollView(
@@ -90,7 +101,18 @@ class _AdminClassesScreenState extends State<AdminClassesScreen> {
               children: classesList.map((cl) {
                 // We are just mapping your list to the ClassCard
                 return GestureDetector(
-                  onTap: () => {},
+                  onTap: () => {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AdminClassScreen(
+                          specificCLass: cl,
+                          userId: userId!,
+                          username: username!,
+                        ),
+                      ),
+                    ),
+                  },
                   child: ClassCard(
                     teacherName: cl.teacherName,
                     subjectCode: cl.subjectCode,

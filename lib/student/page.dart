@@ -18,6 +18,7 @@ class _StudentPageState extends State<StudentPage> {
   final List<MenuItem> menuItems = [
     MenuItem(icon: Icons.dashboard_outlined, label: 'Dashboard'),
     MenuItem(icon: Icons.folder_shared_outlined, label: 'Classes'),
+    MenuItem(icon: Icons.archive_outlined, label: 'Archived Classes'),
   ];
 
   void handleMenuSelected(String menuName) {

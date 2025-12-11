@@ -73,7 +73,7 @@ class _ChatBotScreenState extends State<ChatBotScreen>
   late Animation<double> _pulseAnimation;
 
   // Gemini API configuration
-  static const String _geminiApiKey = 'AIzaSyAItImsG0lyRwqIFG9zK-BhFa4MHkpDcBc';
+  static const String _geminiApiKey = 'AIzaSyC2Y21CV5TbYRGg8Y0pxVvNgLJLPf6BuZw';
   late GenerativeModel _model;
   late GenerativeModel _jsonModel; // Model for JSON responses
   late ChatSession _chatSession;

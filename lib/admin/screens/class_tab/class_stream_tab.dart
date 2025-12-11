@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:interskwela/models/announcement.dart';
 import 'package:interskwela/models/classes.dart';
+import 'package:interskwela/themes/app_theme.dart';
 import 'package:interskwela/widgets/announcement/announce_card.dart';
 import 'package:interskwela/widgets/announcement/announcement_post_card.dart';
 import 'package:interskwela/widgets/announcement/create_announcement_modal.dart';
@@ -67,7 +68,6 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
       }
       return [];
     } catch (e) {
-      print('Error fetching announcements: $e');
       return [];
     }
   }
@@ -79,7 +79,6 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
     String category = 'general',
     List<PlatformFile> files = const [],
   }) async {
-    // Validation: Ensure at least one class is selected if not student specific
     if ((classIds?.length ?? 0) == 0 && (studentIds?.length ?? 0) == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -105,9 +104,6 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
 
     try {
       List<Map<String, String>> attachments = [];
-
-      // == FIX: Create a copy of the list using List.from() ==
-      // This prevents "Concurrent modification" error if the UI clears the original list
       final safeFiles = List<PlatformFile>.from(files);
 
       for (var file in safeFiles) {
@@ -134,8 +130,6 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
         payload['classID'] = classID;
       }
 
-      print('payload: $payload');
-
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -152,19 +146,14 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
           _announcements = _fetchAnnouncements();
         });
       } else {
-        final data = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Server error: ${response.statusCode}")),
         );
-        print("Error Response: ${data['error']}");
       }
     } catch (e) {
-      print("Error details: $e"); // Debug print
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Network Error: ${e.toString()}"),
-        ), // Show actual error
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Network Error: ${e.toString()}")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -196,84 +185,128 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return Container(
+      color: AppColors.background,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            // Banner
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: ClassHeaderBanner(classInfo: widget.specificClass),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Two Column Layout
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left Sidebar
+                SizedBox(
+                  width: 280,
+                  child: Column(
+                    children: [
+                      MeetingCard(
+                        code: widget.specificClass.classCode,
+                        username: widget.username,
+                        selectedClass: widget.specificClass,
+                        role: 'admin',
+                      ),
+                      const SizedBox(height: 16),
+                      UpcomingCard(),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+
+                // Main Content
+                Expanded(
+                  child: Column(
+                    children: [
+                      AnnounceCard(
+                        onPost: (text, files) {
+                          postAnnouncement(
+                            text,
+                            [widget.specificClass.classId],
+                            [],
+                            files: files,
+                          );
+                        },
+                        onSettingsPress: (text, files) {
+                          _openAnnouncementModal(text, files);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      _buildAnnouncementsList(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnnouncementsList() {
+    return FutureBuilder<List<Announcement>>(
+      future: _announcements,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return _buildEmptyState(
+            Icons.error_outline,
+            'Error loading announcements',
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _buildEmptyState(
+            Icons.campaign_outlined,
+            'No announcements yet',
+          );
+        }
+
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: snapshot.data!.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            return AnnouncementPostCard(announcement: snapshot.data![index]);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(IconData icon, String message) {
+    return Container(
+      padding: const EdgeInsets.all(48),
       child: Column(
         children: [
-          ClassHeaderBanner(classInfo: widget.specificClass),
-          const SizedBox(height: 24),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    MeetingCard(
-                      code: widget.specificClass.classCode,
-                      username: widget.username,
-                      selectedClass: widget.specificClass,
-                      role: 'teacher',
-                    ),
-                    const SizedBox(height: 24),
-                    UpcomingCard(),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                flex: 5,
-                child: Column(
-                  children: [
-                    AnnounceCard(
-                      onPost: (text, files) {
-                        postAnnouncement(
-                          text,
-                          [widget.specificClass.classId],
-                          [],
-                          files: files,
-                        );
-                      },
-                      onSettingsPress: (text, files) {
-                        _openAnnouncementModal(text, files);
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    FutureBuilder<List<Announcement>>(
-                      future: _announcements,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        } else if (snapshot.hasError) {
-                          return Center(
-                            child: Text('Error: ${snapshot.error}'),
-                          );
-                        } else if (!snapshot.hasData ||
-                            snapshot.data!.isEmpty) {
-                          return const Center(
-                            child: Text('No announcements yet'),
-                          );
-                        } else {
-                          return ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: snapshot.data!.length,
-                            itemBuilder: (context, index) {
-                              return AnnouncementPostCard(
-                                announcement: snapshot.data![index],
-                              );
-                            },
-                          );
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Icon(icon, size: 48, color: AppColors.textSecondary),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
         ],
       ),

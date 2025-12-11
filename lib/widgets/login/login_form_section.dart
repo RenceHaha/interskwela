@@ -17,6 +17,7 @@ class _LoginFormSectionState extends State<LoginFormSection> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   String _message = '';
+  bool _obscurePassword = true;
 
   Future<void> _handleLogin() async {
     const String url = 'http://localhost:3000/api/accounts/login';
@@ -159,7 +160,7 @@ class _LoginFormSectionState extends State<LoginFormSection> {
             TextField(
               controller: _passwordController,
               keyboardType: TextInputType.visiblePassword,
-              obscureText: true,
+              obscureText: _obscurePassword,
               decoration: InputDecoration(
                 filled: true,
                 fillColor: Color(0xFFF0F0F0), // Light background for the input
@@ -170,6 +171,17 @@ class _LoginFormSectionState extends State<LoginFormSection> {
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 15,
                   vertical: 15,
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
                 ),
               ),
             ),
@@ -207,18 +219,8 @@ class _LoginFormSectionState extends State<LoginFormSection> {
             Center(
               child: RichText(
                 text: TextSpan(
-                  text: 'Not a member? ',
+                  text: 'About us',
                   style: TextStyle(color: Colors.grey[600]),
-                  children: <TextSpan>[
-                    TextSpan(
-                      text: 'Create an account',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                      // Add onTap for navigation here
-                    ),
-                  ],
                 ),
               ),
             ),
